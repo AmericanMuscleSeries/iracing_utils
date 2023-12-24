@@ -15,6 +15,30 @@ from league.objects import Group, SerializationFormat, League
 
 _ams_logger = logging.getLogger('ams')
 
+class ScoringSystem:
+    __slots__ = ["pole_position",
+                 "fastest_lap",
+                 "laps_lead"
+                 ]
+
+    def __init__(self):
+        self.pole_position = 0
+        self.fastest_lap = 0
+        self.laps_lead = 0
+
+
+class LinearDecentScoring(ScoringSystem):
+    __slots__ = ["top_score"]
+
+    def __init__(self):
+        self.top_score = 0
+
+class AssignmentScoring(ScoringSystem):
+    __slots__ = ["assignments"]
+
+    def __init__(self):
+        self.assignments = dict()
+
 
 class GroupRule:
     __slots__ = ["_min_car_number",
@@ -72,6 +96,7 @@ class TimePenalty(SeasonRace):
 
 class LeagueResource:
     __slots__ = ["_ir_id",
+                 "scoring_system",
                  "num_drops",
                  "non_drivers",
                  "practice_races",
@@ -81,6 +106,7 @@ class LeagueResource:
 
     def __init__(self, ir_id: int):
         self._ir_id = ir_id
+        self.scoring_system = None
         self.num_drops = 0
         self.non_drivers = list()
         self.practice_races = list()
@@ -98,6 +124,16 @@ class LeagueResource:
 
     @property
     def ir_id(self): return self._ir_id
+
+    def set_linear_decent_scoring(self, top_score: int):
+        self.scoring_system = LinearDecentScoring()
+        self.scoring_system.top_score = top_score
+        return self.scoring_system
+
+    def set_assignment_scoring(self, assignments: dict):
+        self.scoring_system = AssignmentScoring()
+        self.scoring_system.assignments = assignments
+        return self.scoring_system
 
     def add_non_driver(self, cust_id: int):
         self.non_drivers.append(cust_id)
@@ -242,17 +278,32 @@ class LeagueResource:
                         rr._finish_position = pos + 1
 
                 # Start scoring this race
-                max_points = 40
-                for rr in my_race.grid.values():
-                    rr._points = max_points - rr._finish_position+1
-                    if rr._points < 0:
-                        rr._points = 0
-                    if rr._laps_lead > 0:
-                        rr._points += 1
-                    if rr._pole_position:
-                        rr._points += 1
-                    #if rr._fastest_lap:
-                    #    rr._points += 1
+                if isinstance(self.scoring_system, LinearDecentScoring):
+                    max_points = self.scoring_system.top_score
+                    for rr in my_race.grid.values():
+                        rr._points = max_points - rr._finish_position+1
+                        if rr._points < 0:
+                            rr._points = 0
+                        if rr._pole_position:
+                            rr._points += self.scoring_system.pole_position
+                        if rr._fastest_lap:
+                            rr._points += self.scoring_system.fastest_lap
+                        if rr._laps_lead > 0:
+                            rr._points += self.scoring_system.laps_lead
+                elif isinstance(self.scoring_system, AssignmentScoring):
+                    for rr in my_race.grid.values():
+                        pos_pts = 0
+                        if rr._finish_position in self.scoring_system.assignments:
+                            pos_pts = self.scoring_system.assignments[rr._finish_position]
+                        rr._points = pos_pts
+                        if rr._pole_position:
+                            rr._points += self.scoring_system.pole_position
+                        if rr._fastest_lap:
+                            rr._points += self.scoring_system.fastest_lap
+                        if rr._laps_lead > 0:
+                            rr._points += self.scoring_system.laps_lead
+                else:
+                    _ams_logger.fatal("Unknown scoring system provided")
 
                 # End of looping over every race in a season
 
@@ -339,6 +390,18 @@ def serialize_league_resource_to_bind(src: LeagueResource, dst: LeagueResourceDa
     dst.iRacingID = src.ir_id
     dst.NumDrops = src.num_drops
 
+    if isinstance(src.scoring_system, LinearDecentScoring):
+        dst.ScoringSystem.LinearDecent.TopScore = src.scoring_system.top_score
+        dst.ScoringSystem.LinearDecent.Base.PolePosition = src.scoring_system.pole_position
+        dst.ScoringSystem.LinearDecent.Base.FastestLap = src.scoring_system.fastest_lap
+        dst.ScoringSystem.LinearDecent.Base.LapsLead = src.scoring_system.laps_lead
+    elif isinstance(src.scoring_system, AssignmentScoring):
+        for pos, pts in src.scoring_system.assignments.items():
+            dst.ScoringSystem.Assignment.PositionScore[pos] = pts
+        dst.ScoringSystem.Assignment.Base.PolePosition = src.scoring_system.pole_position
+        dst.ScoringSystem.Assignment.Base.FastestLap = src.scoring_system.fastest_lap
+        dst.ScoringSystem.Assignment.Base.LapsLead = src.scoring_system.laps_lead
+
     for cust_id in src.non_drivers:
         dst.NonDrivers.append(cust_id)
 
@@ -374,19 +437,38 @@ def serialize_league_resource_from_string(src: str, fmt: SerializationFormat) ->
     else:
         lrd.ParseFromString(src)
     dst = LeagueResource(lrd.iRacingID)
-    dst.num_drops = lrd.NumDrops
-    for cust_id in lrd.NonDrivers:
+    serialize_league_resource_from_bind(lrd, dst)
+    return dst
+
+
+def serialize_league_resource_from_bind(src: LeagueResourceData, dst: LeagueResource):
+    dst.num_drops = src.NumDrops
+
+    system = src.ScoringSystem.WhichOneof("System")
+    # data = getattr(src.ScoringSystem, src.ScoringSystem.WhichOneof("System"))
+    if system == "LinearDecent":
+        scoring = dst.set_linear_decent_scoring(src.ScoringSystem.LinearDecent.TopScore)
+        scoring.pole_position = src.ScoringSystem.LinearDecent.Base.PolePosition
+        scoring.laps_lead = src.ScoringSystem.LinearDecent.Base.FastestLap
+        scoring.fastest_lap = src.ScoringSystem.LinearDecent.Base.LapsLead
+    elif system == "Assignment":
+        scoring = dst.set_assignment_scoring(src.ScoringSystem.Assignment.PositionScore)
+        scoring.pole_position = src.ScoringSystem.Assignment.Base.PolePosition
+        scoring.laps_lead = src.ScoringSystem.Assignment.Base.FastestLap
+        scoring.fastest_lap = src.ScoringSystem.Assignment.Base.LapsLead
+
+    for cust_id in src.NonDrivers:
         dst.add_non_driver(cust_id)
-    for sr in lrd.PracticeRace:
+    for sr in src.PracticeRace:
         dst.add_practice_race(sr.Season, sr.Race)
-    for season, grs in lrd.SeasonGroupRules.items():
+    for season, grs in src.SeasonGroupRules.items():
         for gr in grs.GroupRule:
             dst.add_group_rule(season,
                                GroupRule(gr.MinCarNumber,
                                          gr.MaxCarNumber,
                                          Group(gr.Group))
                                )
-    for tp in lrd.TimePenalty:
+    for tp in src.TimePenalty:
         dst.add_time_penalty(tp.SeasonRace.Season,
                              tp.SeasonRace.Race,
                              tp.Driver,

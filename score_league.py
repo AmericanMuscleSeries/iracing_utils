@@ -51,6 +51,19 @@ if __name__ == "__main__":
     # Set the number of drop rounds
     lr.num_drops = 2
 
+    # Set our scoring system
+    scoring = lr.set_linear_decent_scoring(40)
+    # This will provide the winner with 40 points, and 1 less point for each subsequent driver
+
+    # You could do formula 1 style scoring
+    # scoring = lr.set_assignment_scoring({1: 25, 2: 18, 3: 15, 4: 12, 5: 10,
+    #                                     6: 8, 7: 6, 8: 4, 9: 2, 10: 1})
+
+    # Let's give points for these as well, default is 0 points
+    scoring.pole_position = 1
+    scoring.laps_lead = 1
+    scoring.fastest_lap = 1
+
     # Add non drivers like race control and media personalities
     lr.add_non_driver(295683)
     lr.add_non_driver(366513)

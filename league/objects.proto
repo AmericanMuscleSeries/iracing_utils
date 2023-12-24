@@ -36,14 +36,47 @@ message TimePenaltyData
   int32          Seconds    = 3;
 }
 
+message ScoringSystemData
+{
+  int32  PolePosition = 1;
+  int32  FastestLap   = 2;
+  int32  LapsLead     = 3;
+}
+
+// Race winner will get TopScore, each subsequent racer will get 1 less point
+// Drivers outside of the TopScore will get zero points (not negative points)
+message LinearDecentScoringData
+{
+  ScoringSystemData Base     = 1;
+  int32             TopScore = 2;
+}
+
+// Race winner will get TopScore, each subsequent racer will get 1 less point
+// Drivers outside of the TopScore will get zero points (not negative points)
+message AssignmentScoringData
+{
+  ScoringSystemData Base          = 1;
+  map<int32,int32>  PositionScore = 2; // Key is position, value is the the amount of points awarded
+}
+
+message AnyScoringSystemData
+{
+  oneof System
+  {
+    LinearDecentScoringData  LinearDecent = 1;
+    AssignmentScoringData    Assignment   = 2;
+  }
+}
+
 message LeagueResourceData
 {
   int32                      iRacingID        = 1;
-  int32                      NumDrops         = 2;
-  repeated int32             NonDrivers       = 3;
-  repeated SeasonRaceData    PracticeRace     = 4;
-  map<int32, GroupRulesData> SeasonGroupRules = 5;
-  repeated TimePenaltyData   TimePenalty      = 6;
+  AnyScoringSystemData       ScoringSystem    = 2;
+  int32                      NumDrops         = 3;
+  repeated int32             NonDrivers       = 4;
+  repeated SeasonRaceData    PracticeRace     = 5;
+  map<int32, GroupRulesData> SeasonGroupRules = 6;
+  repeated TimePenaltyData   TimePenalty      = 7;
 }
 
 // Data structures for holding iRacing data
