@@ -1,0 +1,110 @@
+syntax = "proto3";
+package american_muscle_series;
+option optimize_for = SPEED;
+
+// Data structures describing the league
+
+enum eGroup
+{
+  Unknown=0;
+  Pro=1;
+  Am=2;
+}
+
+message GroupRuleData
+{
+  int32     MinCarNumber   = 1;
+  int32     MaxCarNumber   = 2;
+  eGroup    Group          = 3;
+}
+
+message GroupRulesData
+{
+  repeated GroupRuleData GroupRule = 1;
+}
+
+message SeasonRaceData
+{
+  int32 Season = 1;
+  int32 Race   = 2;
+}
+
+message TimePenaltyData
+{
+  SeasonRaceData SeasonRace = 1;
+  int32          Driver     = 2;
+  int32          Seconds    = 3;
+}
+
+message LeagueResourceData
+{
+  int32                      iRacingID        = 1;
+  int32                      NumDrops         = 2;
+  repeated int32             NonDrivers       = 3;
+  repeated SeasonRaceData    PracticeRace     = 4;
+  map<int32, GroupRulesData> SeasonGroupRules = 5;
+  repeated TimePenaltyData   TimePenalty      = 6;
+}
+
+// Data structures for holding iRacing data
+
+message LeagueData
+{
+  map<int32, MemberData> Members = 1; // Key is driver iracing id
+  map<int32, SeasonData> Seasons = 2; // Key is season number
+}
+
+message MemberData
+{
+  string    Name     = 1;
+  string    Nickname = 2;
+}
+
+message SeasonData
+{
+  map<int32, DriverData> Drivers = 1; // Key is driver iracing id
+  map<int32, RaceData>   Races   = 2; // Key is race number
+}
+
+message DriverData
+{
+  int32     CarNumber          = 1;
+  eGroup    Group              = 2;
+  int32     Points             = 3;
+  int32     TotalFastestLaps   = 4;
+  int32     TotalIncidents     = 5;
+  int32     TotalLapsComplete  = 6;
+  int32     TotalLapsLead      = 7;
+  int32     TotalPolePositions = 8;
+  int32     TotalRaces         = 9;
+  // Rating mu,sigma
+}
+
+message GroupStatsData // Can't make a map with an enum as key :-(
+{
+  eGroup Group      = 1;
+  int32  Count      = 2;
+  int32  FastestLap = 3;
+}
+
+message RaceData
+{
+  string                  Date       = 1;
+  string                  Track      = 2;
+  map<int32, ResultData>  Grid       = 3; // key is driver iracing id
+  repeated GroupStatsData GroupStats = 4;
+}
+
+message ResultData
+{
+  bool   PolePosition   = 1;
+  bool   FastestLap     = 2;
+  int32  StartPosition  = 3;
+  int32  FinishPosition = 4;
+  int32  Points         = 5;
+  float  Interval       = 6;
+  int32  Incidents      = 7;
+  int32  LapsCompleted  = 8;
+  int32  LapsLead       = 9;
+}
+
