@@ -5,7 +5,7 @@ import json
 import logging
 import argparse
 
-from league.utils import LeagueResource, Group, GroupRule
+from league.config import LeagueConfiguration, Group, GroupRule
 from league.objects import print_debug_stats
 
 if __name__ == "__main__":
@@ -43,10 +43,12 @@ if __name__ == "__main__":
     )
     opts = parser.parse_args()
 
+    # TODO properly utilize arguments
+
     # Note, for our API, use 1 based counting
     # The first race is race 1, not race 0
     # The first season is season 1, not season 0
-    lr = LeagueResource(6810)
+    lr = LeagueConfiguration(6810)
 
     # Set the number of drop rounds
     lr.num_drops = 2
@@ -62,7 +64,7 @@ if __name__ == "__main__":
     # Let's give points for these as well, default is 0 points
     scoring.pole_position = 1
     scoring.laps_lead = 1
-    scoring.fastest_lap = 1
+    scoring.fastest_lap = 0
 
     # Add non drivers like race control and media personalities
     lr.add_non_driver(295683)
@@ -77,12 +79,17 @@ if __name__ == "__main__":
     lr.add_practice_race(5, 1)
     lr.add_practice_race(5, 2)
 
-    # Add a few penalties for punting (for testing purposes, we have only the cleanest of drivers)
-    lr.add_time_penalty(5, 1, 823724, 5)  # This should knock Kevin to 3rd
-    lr.add_time_penalty(5, 2, 120570, 5)  # This should knock Malone to 4th
+    # Apply Penalties
+    lr.add_time_penalty(5, 2, 821509, 5)
+    lr.add_time_penalty(5, 3, 823724, 5)
     # You can only apply a time penalty on drivers that finish on the lead lap, an error will be logged
-    lr.add_time_penalty(5, 1, 413722, 5)  # This driver did not finish on lead lap
+    # lr.add_time_penalty(5, 1, 413722, 5)  # This driver did not finish on lead lap
 
+    # [Optional] Provide a Google Sheet, for each season, where we can push results to
+    # Where is it and what are the group tab names of the Google sheet to push results to
+    lr.add_google_sheet(5,
+                        "1jlybjNg8sQGFuwSPrnNvQRq5SrIX73QUbISNVIp3Clk",
+                        {Group.Pro: "Pro Drivers", Group.Am: "Am Drivers"})
 
     # Save our league resource to a json file.
     # Convert the LeagueResource class to a python dict
@@ -96,7 +103,7 @@ if __name__ == "__main__":
         # Testing that our serialization is consistent
         r = open('resource.json')
         d = json.load(r)
-        lr = LeagueResource.from_dict(d)
+        lr = LeagueConfiguration.from_dict(d)
         d = lr.as_dict()
 
         with open("resource2.json", 'w') as fp:
@@ -115,4 +122,12 @@ if __name__ == "__main__":
     # Dump the dict to json
     with open("league.json", 'w') as fp:
         json.dump(d, fp, indent=2)
+
+    # TODO add credentials file as argument
+    # Push our results up to our sheets
+    lr.push_results_to_sheets(league, "./credentials.json")
+
+
+
+
 

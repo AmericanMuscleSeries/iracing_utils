@@ -68,15 +68,27 @@ message AnyScoringSystemData
   }
 }
 
-message LeagueResourceData
+message GoogleTabData // Can't make a map with an enum as key :-(
 {
-  int32                      iRacingID        = 1;
-  AnyScoringSystemData       ScoringSystem    = 2;
-  int32                      NumDrops         = 3;
-  repeated int32             NonDrivers       = 4;
-  repeated SeasonRaceData    PracticeRace     = 5;
-  map<int32, GroupRulesData> SeasonGroupRules = 6;
-  repeated TimePenaltyData   TimePenalty      = 7;
+  eGroup Group   = 1;
+  string TabName = 2;
+}
+message GoogleSheetsData
+{
+  string                 Key      = 1;
+  repeated GoogleTabData GroupTab = 2;
+}
+
+message LeagueConfigurationData
+{
+  int32                         iRacingID        = 1;
+  AnyScoringSystemData          ScoringSystem    = 2;
+  int32                         NumDrops         = 3;
+  repeated int32                NonDrivers       = 4;
+  repeated SeasonRaceData       PracticeRace     = 5;
+  map<int32, GroupRulesData>    SeasonGroupRules = 6;
+  repeated TimePenaltyData      TimePenalty      = 7;
+  map<int32, GoogleSheetsData>  GoogleSheets     = 8; // key is season number
 }
 
 // Data structures for holding iRacing data
@@ -110,14 +122,18 @@ message DriverData
   int32     TotalLapsLead      = 7;
   int32     TotalPolePositions = 8;
   int32     TotalRaces         = 9;
-  // Rating mu,sigma
+  float     Mu                 = 10; // Trueskill
+  float     Sigma              = 11; // Trueskill
 }
 
 message GroupStatsData // Can't make a map with an enum as key :-(
 {
-  eGroup Group      = 1;
-  int32  Count      = 2;
-  int32  FastestLap = 3;
+  eGroup Group              = 1;
+  int32  Count              = 2;
+  int32  PolePositionDriver = 3;
+  int32  PolePosition       = 4;
+  int32  FastestLapDriver   = 5;
+  float  FastestLapTime     = 6;
 }
 
 message RaceData
@@ -139,5 +155,7 @@ message ResultData
   int32  Incidents      = 7;
   int32  LapsCompleted  = 8;
   int32  LapsLead       = 9;
+  float  Mu             = 10; // Trueskill
+  float  Sigma          = 11; // Trueskill
 }
 

@@ -35,6 +35,11 @@ class League:
         string = serialize_league_to_string(self, SerializationFormat.JSON)
         return json.loads(string)
 
+    @staticmethod
+    def from_dict(d: dict):
+        string = json.dumps(d)
+        return serialize_league_from_string(string, SerializationFormat.JSON)
+
     def add_member(self, cust_id: int, name: str, nickname: str):
         if cust_id not in self.members:
             self.members[cust_id] = Member(cust_id, name, nickname)
@@ -376,11 +381,24 @@ def serialize_league_to_string(src: League, fmt: SerializationFormat):
             driver_data.TotalLapsLead = driver.total_laps_lead
             driver_data.TotalPolePositions = driver.total_pole_positions
             driver_data.TotalRaces = driver.total_races
+            driver_data.Mu = driver.mu
+            driver_data.Sigma = driver.sigma
+
 
         for race_number, race in season.races.items():
             race_data = season_data.Races[race_number]
             race_data.Date = race.date
             race_data.Track = race.track
+
+            for group, stats in race.stats.items():
+                stats_data = GroupStatsData()
+                stats_data.Group = stats.group.value
+                stats_data.Count = stats.num_drivers
+                stats_data.PolePositionDriver = stats.pole_position_driver
+                stats_data.PolePosition = stats.pole_position
+                stats_data.FastestLapDriver = stats.fastest_lap_driver
+                stats_data.FastestLapTime = stats.fastest_lap_time
+                race_data.GroupStats.append(stats_data)
 
             for cust_id, result in race.grid.items():
                 results_data = race_data.Grid[cust_id]
@@ -393,8 +411,70 @@ def serialize_league_to_string(src: League, fmt: SerializationFormat):
                 results_data.Incidents = result.incidents
                 results_data.LapsCompleted = result.laps_completed
                 results_data.LapsLead = result.laps_lead
+                results_data.Mu = result.mu
+                results_data.Sigma = result.sigma
 
     return json_format.MessageToJson(dst, True, True)
+
+
+def serialize_league_from_string(src: str, fmt: SerializationFormat) -> League:
+    league_data = LeagueData()
+    if fmt == SerializationFormat.JSON or fmt == SerializationFormat.VERBOSE_JSON:
+        json_format.Parse(src, league_data)
+    elif fmt == SerializationFormat.TEXT:
+        text_format.Parse(src, league_data)
+    else:
+        league_data.ParseFromString(src)
+    dst = League()
+    serialize_league_resource_from_bind(league_data, dst)
+    return dst
+
+
+def serialize_league_resource_from_bind(src: LeagueData, dst: League):
+    for cust_id, member_data in src.Members.items():
+        dst.add_member(cust_id, member_data.Name, member_data.Nickname)
+
+    for season_num, season_data in src.Seasons.items():
+        season = dst.add_season(season_num)
+        for cust_id, driver_data in season_data.Drivers.items():
+            driver = season.add_driver(cust_id)
+            driver._group = Group(driver_data.Group)
+            driver._car_number = driver_data.CarNumber
+            driver._points = driver_data.Points
+            driver._total_fastest_laps = driver_data.TotalFastestLaps
+            driver._total_incidents = driver_data.TotalIncidents
+            driver._total_laps_complete = driver_data.TotalLapsComplete
+            driver._total_laps_lead = driver_data.TotalLapsLead
+            driver._total_pole_positions = driver_data.TotalPolePositions
+            driver._total_races = driver_data.TotalRaces
+            driver._mu = driver_data.Mu
+            driver._sigma = driver_data.Sigma
+
+        for race_num, race_data in season_data.Races.items():
+            race = season.add_race(race_num, race_data.Date, race_data.Track)
+
+            for group_stats_data in race_data.GroupStats:
+                stats = race.get_stats(group_stats_data.Group)
+                stats._num_drivers = group_stats_data.Count
+                stats._pole_position_driver = group_stats_data.Count
+                stats._pole_position = group_stats_data.Count
+                stats._fastest_lap_driver = group_stats_data.Count
+                stats._fastest_lap_time = group_stats_data.Count
+
+            for cust_id, result_data in race_data.Grid.items():
+                result = race.add_result(cust_id)
+                result._cust_id = cust_id
+                result._pole_position = result_data.PolePosition
+                result._fastest_lap = result_data.FastestLap
+                result._start_position = result_data.StartPosition
+                result._finish_position = result_data.FinishPosition
+                result._points = result_data.Points
+                result._interval = result_data.Interval
+                result._incidents = result_data.Incidents
+                result._laps_completed = result_data.LapsCompleted
+                result._laps_lead = result_data.LapsLead
+                result._mu = result_data.Mu
+                result._sigma = result_data.Sigma
 
 
 def print_debug_stats(lg: League, cust_id: int):

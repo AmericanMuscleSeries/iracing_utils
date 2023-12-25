@@ -11,6 +11,7 @@ from google.protobuf import json_format, text_format
 from league.objects_pb2 import *
 
 from league.objects import Group, SerializationFormat, League
+from league.sheets import GDrive
 
 
 _ams_logger = logging.getLogger('ams')
@@ -94,14 +95,31 @@ class TimePenalty(SeasonRace):
     def seconds(self): return self._seconds
 
 
-class LeagueResource:
+class GoogleSheet:
+    __slots__ = ["_key",
+                 "_group_tabs"
+                 ]
+
+    def __init__(self, key: str, group_tabs: dict):
+        self._key = key
+        self._group_tabs = group_tabs
+
+    @property
+    def key(self): return self._key
+
+    @property
+    def group_tabs(self): return self._group_tabs
+
+
+class LeagueConfiguration:
     __slots__ = ["_ir_id",
                  "scoring_system",
                  "num_drops",
                  "non_drivers",
                  "practice_races",
                  "time_penalties",
-                 "group_rules"
+                 "group_rules",
+                 "google_sheets"
                  ]
 
     def __init__(self, ir_id: int):
@@ -112,6 +130,7 @@ class LeagueResource:
         self.practice_races = list()
         self.group_rules = dict()
         self.time_penalties = list()
+        self.google_sheets = dict()
 
     def as_dict(self) -> dict:
         string = serialize_league_resource_to_string(self, SerializationFormat.JSON)
@@ -148,6 +167,16 @@ class LeagueResource:
 
     def add_time_penalty(self, season: int, race: int, cust_id: int, seconds: int):
         self.time_penalties.append(TimePenalty(season, race, cust_id, seconds))
+
+    def add_google_sheet(self, season_number: int, key: str, group_tabs: dict):
+        if season_number not in self.google_sheets:
+            self.google_sheets[season_number] = GoogleSheet(key, group_tabs)
+
+    def push_results_to_sheets(self, results: League, credentials_filename: str):
+        gdrive = GDrive(credentials_filename)
+        for season, sheet in self.google_sheets.items():
+            gdrive.connect_to_results(sheet.key, sheet.group_tabs)
+            gdrive.push_results(results, season, list(sheet.group_tabs.keys()))
 
     def get_group(self, season: int, car_number: int) -> Group:
         if season not in self.group_rules:
@@ -284,10 +313,6 @@ class LeagueResource:
                         rr._points = max_points - rr._finish_position+1
                         if rr._points < 0:
                             rr._points = 0
-                        if rr._pole_position:
-                            rr._points += self.scoring_system.pole_position
-                        if rr._fastest_lap:
-                            rr._points += self.scoring_system.fastest_lap
                         if rr._laps_lead > 0:
                             rr._points += self.scoring_system.laps_lead
                 elif isinstance(self.scoring_system, AssignmentScoring):
@@ -296,31 +321,12 @@ class LeagueResource:
                         if rr._finish_position in self.scoring_system.assignments:
                             pos_pts = self.scoring_system.assignments[rr._finish_position]
                         rr._points = pos_pts
-                        if rr._pole_position:
-                            rr._points += self.scoring_system.pole_position
-                        if rr._fastest_lap:
-                            rr._points += self.scoring_system.fastest_lap
                         if rr._laps_lead > 0:
                             rr._points += self.scoring_system.laps_lead
                 else:
                     _ams_logger.fatal("Unknown scoring system provided")
 
                 # End of looping over every race in a season
-
-            # Score each driver
-            my_points = list()
-            for cust_id, my_driver in my_season.drivers.items():
-                my_season.get_driver(cust_id)
-                my_points.clear()
-                for my_race in my_season.races.values():
-                    my_result = my_race.get_result(cust_id)
-                    if my_result is None:  # Not in this race
-                        my_points.append(0)
-                    else:
-                        my_points.append(my_result.points)
-                for drops in range(self.num_drops):
-                    my_points.remove(min(my_points))
-                my_driver._points = sum(my_points)
 
             # Rate each driver
             my_ratings = list()
@@ -364,17 +370,36 @@ class LeagueResource:
                     rr._fastest_lap = True
                     dvr = my_season.get_driver(stat.fastest_lap_driver)
                     dvr._total_fastest_laps += 1
+                    if rr._fastest_lap:
+                        rr._points += self.scoring_system.fastest_lap
                     rr = my_race.get_result(stat.pole_position_driver)
                     rr._pole_position = True
+                    if rr._pole_position:
+                        rr._points += self.scoring_system.pole_position
                     dvr._total_pole_positions += 1
+
+            # Score each driver
+            my_points = list()
+            for cust_id, my_driver in my_season.drivers.items():
+                my_season.get_driver(cust_id)
+                my_points.clear()
+                for my_race in my_season.races.values():
+                    my_result = my_race.get_result(cust_id)
+                    if my_result is None:  # Not in this race
+                        my_points.append(0)
+                    else:
+                        my_points.append(my_result.points)
+                for drops in range(self.num_drops):
+                    my_points.remove(min(my_points))
+                my_driver._points = sum(my_points)
 
         # End of looping over every season
 
         return my_league
 
 
-def serialize_league_resource_to_string(src: LeagueResource, fmt: SerializationFormat) -> str:
-    dst = LeagueResourceData()
+def serialize_league_resource_to_string(src: LeagueConfiguration, fmt: SerializationFormat) -> str:
+    dst = LeagueConfigurationData()
     serialize_league_resource_to_bind(src, dst)
 
     if fmt == SerializationFormat.JSON or fmt == SerializationFormat.VERBOSE_JSON:
@@ -386,7 +411,7 @@ def serialize_league_resource_to_string(src: LeagueResource, fmt: SerializationF
         return dst.SerializeToString()
 
 
-def serialize_league_resource_to_bind(src: LeagueResource, dst: LeagueResourceData):
+def serialize_league_resource_to_bind(src: LeagueConfiguration, dst: LeagueConfigurationData):
     dst.iRacingID = src.ir_id
     dst.NumDrops = src.num_drops
 
@@ -428,20 +453,20 @@ def serialize_league_resource_to_bind(src: LeagueResource, dst: LeagueResourceDa
         dst.TimePenalty.append(tpd)
 
 
-def serialize_league_resource_from_string(src: str, fmt: SerializationFormat) -> LeagueResource:
-    lrd = LeagueResourceData()
+def serialize_league_resource_from_string(src: str, fmt: SerializationFormat) -> LeagueConfiguration:
+    lrd = LeagueConfigurationData()
     if fmt == SerializationFormat.JSON or fmt == SerializationFormat.VERBOSE_JSON:
         json_format.Parse(src, lrd)
     elif fmt == SerializationFormat.TEXT:
         text_format.Parse(src, lrd)
     else:
         lrd.ParseFromString(src)
-    dst = LeagueResource(lrd.iRacingID)
+    dst = LeagueConfiguration(lrd.iRacingID)
     serialize_league_resource_from_bind(lrd, dst)
     return dst
 
 
-def serialize_league_resource_from_bind(src: LeagueResourceData, dst: LeagueResource):
+def serialize_league_resource_from_bind(src: LeagueConfigurationData, dst: LeagueConfiguration):
     dst.num_drops = src.NumDrops
 
     system = src.ScoringSystem.WhichOneof("System")
