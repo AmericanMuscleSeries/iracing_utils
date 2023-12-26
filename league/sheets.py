@@ -42,7 +42,7 @@ class GDrive:
 
             # Push track and dates to individual cells since they are merged cells
             col0 = ''
-            col1 = 'G'
+            col1 = 'M'
             for race_number in range(len(season.races)):
                 race = season.get_race(race_number + 1)
                 self._result_sheets[group].update(col0+col1+"2", race.date)
@@ -51,7 +51,7 @@ class GDrive:
                     split_at = track_name.find(' ', track_name.find(' ')+1)
                     track_name = race.track[:split_at] + '\n' + race.track[split_at:]
                 self._result_sheets[group].update(col0+col1+"3", track_name)
-                col1 = chr(ord(col1) + 5)  # The cell is a merging of 5 cells
+                col1 = chr(ord(col1) + 11)  # The cell is a merging of 5 cells
                 if ord(col1) > 90:  # Once we go past Z, start doing two letter columns
                     if col0 == '':
                         col0 = 'A'
