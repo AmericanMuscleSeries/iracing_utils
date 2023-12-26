@@ -113,6 +113,7 @@ class GoogleSheet:
 
 class LeagueConfiguration:
     __slots__ = ["_ir_id",
+                 "_name",
                  "scoring_system",
                  "num_drops",
                  "non_drivers",
@@ -124,6 +125,7 @@ class LeagueConfiguration:
 
     def __init__(self, ir_id: int):
         self._ir_id = ir_id
+        self._name = None
         self.scoring_system = None
         self.num_drops = 0
         self.non_drivers = list()
@@ -143,6 +145,9 @@ class LeagueConfiguration:
 
     @property
     def ir_id(self): return self._ir_id
+
+    @property
+    def name(self): return self._name
 
     def set_linear_decent_scoring(self, top_score: int):
         self.scoring_system = LinearDecentScoring()
@@ -175,6 +180,7 @@ class LeagueConfiguration:
     def push_results_to_sheets(self, results: League, credentials_filename: str):
         gdrive = GDrive(credentials_filename)
         for season, sheet in self.google_sheets.items():
+            _ams_logger.info("Pushing " + self._name + " season " + str(season) + " results to sheets")
             gdrive.connect_to_results(sheet.key, sheet.group_tabs)
             gdrive.push_results(results, season, list(sheet.group_tabs.keys()))
 
@@ -195,7 +201,8 @@ class LeagueConfiguration:
         # Pull everything from iracing
         idc = irDataClient(username, password)
         league_info = idc.league_get(self._ir_id)
-        _ams_logger.info("Extracting data from league: " + league_info["league_name"])
+        self._name = league_info["league_name"]
+        _ams_logger.info("Extracting data from league: " + self._name)
         _ams_logger.info("There are " + str(len(league_info["roster"])) + " members in this league")
         for member in league_info["roster"]:
             my_league.add_member(member["cust_id"], member["display_name"], member["nick_name"])
@@ -414,6 +421,8 @@ def serialize_league_resource_to_string(src: LeagueConfiguration, fmt: Serializa
 def serialize_league_resource_to_bind(src: LeagueConfiguration, dst: LeagueConfigurationData):
     dst.iRacingID = src.ir_id
     dst.NumDrops = src.num_drops
+    if src.name is not None:
+        dst.Name = src.name
 
     if isinstance(src.scoring_system, LinearDecentScoring):
         dst.ScoringSystem.LinearDecent.TopScore = src.scoring_system.top_score
@@ -452,6 +461,14 @@ def serialize_league_resource_to_bind(src: LeagueConfiguration, dst: LeagueConfi
         tpd.Seconds = tp.seconds
         dst.TimePenalty.append(tpd)
 
+    for season, sheet in src.google_sheets.items():
+        dst.GoogleSheets[season].Key = sheet.key
+        for group, name in sheet.group_tabs.items():
+            group_tab_data = GoogleTabData()
+            group_tab_data.Group = group.value
+            group_tab_data.TabName = name
+            dst.GoogleSheets[season].GroupTab.append(group_tab_data)
+
 
 def serialize_league_resource_from_string(src: str, fmt: SerializationFormat) -> LeagueConfiguration:
     lrd = LeagueConfigurationData()
@@ -467,6 +484,7 @@ def serialize_league_resource_from_string(src: str, fmt: SerializationFormat) ->
 
 
 def serialize_league_resource_from_bind(src: LeagueConfigurationData, dst: LeagueConfiguration):
+    dst._name = src.Name
     dst.num_drops = src.NumDrops
 
     system = src.ScoringSystem.WhichOneof("System")
@@ -474,18 +492,20 @@ def serialize_league_resource_from_bind(src: LeagueConfigurationData, dst: Leagu
     if system == "LinearDecent":
         scoring = dst.set_linear_decent_scoring(src.ScoringSystem.LinearDecent.TopScore)
         scoring.pole_position = src.ScoringSystem.LinearDecent.Base.PolePosition
-        scoring.laps_lead = src.ScoringSystem.LinearDecent.Base.FastestLap
-        scoring.fastest_lap = src.ScoringSystem.LinearDecent.Base.LapsLead
+        scoring.laps_lead = src.ScoringSystem.LinearDecent.Base.LapsLead
+        scoring.fastest_lap = src.ScoringSystem.LinearDecent.Base.FastestLap
     elif system == "Assignment":
         scoring = dst.set_assignment_scoring(src.ScoringSystem.Assignment.PositionScore)
         scoring.pole_position = src.ScoringSystem.Assignment.Base.PolePosition
-        scoring.laps_lead = src.ScoringSystem.Assignment.Base.FastestLap
-        scoring.fastest_lap = src.ScoringSystem.Assignment.Base.LapsLead
+        scoring.laps_lead = src.ScoringSystem.Assignment.Base.LapsLead
+        scoring.fastest_lap = src.ScoringSystem.Assignment.Base.FastestLap
 
     for cust_id in src.NonDrivers:
         dst.add_non_driver(cust_id)
+
     for sr in src.PracticeRace:
         dst.add_practice_race(sr.Season, sr.Race)
+
     for season, grs in src.SeasonGroupRules.items():
         for gr in grs.GroupRule:
             dst.add_group_rule(season,
@@ -493,10 +513,19 @@ def serialize_league_resource_from_bind(src: LeagueConfigurationData, dst: Leagu
                                          gr.MaxCarNumber,
                                          Group(gr.Group))
                                )
+
     for tp in src.TimePenalty:
         dst.add_time_penalty(tp.SeasonRace.Season,
                              tp.SeasonRace.Race,
                              tp.Driver,
                              tp.Seconds)
+
+    for season, sheets_data in src.GoogleSheets.items():
+        group_tabs = dict()
+        for group_tab_data in sheets_data.GroupTab:
+            group_tabs[Group(group_tab_data.Group)] = group_tab_data.TabName
+        dst.add_google_sheet(season,
+                             sheets_data.Key,
+                             group_tabs)
     return dst
 

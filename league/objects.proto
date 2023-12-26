@@ -82,13 +82,14 @@ message GoogleSheetsData
 message LeagueConfigurationData
 {
   int32                         iRacingID        = 1;
-  AnyScoringSystemData          ScoringSystem    = 2;
-  int32                         NumDrops         = 3;
-  repeated int32                NonDrivers       = 4;
-  repeated SeasonRaceData       PracticeRace     = 5;
-  map<int32, GroupRulesData>    SeasonGroupRules = 6;
-  repeated TimePenaltyData      TimePenalty      = 7;
-  map<int32, GoogleSheetsData>  GoogleSheets     = 8; // key is season number
+  string                        Name             = 2;
+  AnyScoringSystemData          ScoringSystem    = 3;
+  int32                         NumDrops         = 4;
+  repeated int32                NonDrivers       = 5;
+  repeated SeasonRaceData       PracticeRace     = 6;
+  map<int32, GroupRulesData>    SeasonGroupRules = 7;
+  repeated TimePenaltyData      TimePenalty      = 8;
+  map<int32, GoogleSheetsData>  GoogleSheets     = 9; // key is season number
 }
 
 // Data structures for holding iRacing data

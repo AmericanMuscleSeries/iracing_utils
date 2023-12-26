@@ -68,21 +68,30 @@ class GDrive:
                 row.append(driver.points)
                 row.append(driver.total_races)
                 row.append(driver.total_incidents)
+                row.append(driver.total_pole_positions)
+                row.append(driver.total_laps_complete)
+                row.append(driver.total_laps_lead)
+                row.append(driver.total_fastest_laps)
+                row.append(driver.mu)
+                row.append(driver.sigma)
 
                 for race_number in range(len(season.races)):
                     result = season.get_race(race_number+1).get_result(cust_id)
                     if result is None:
-                        row.append("")
-                        row.append("")
-                        row.append("")
-                        row.append("")
-                        row.append("")
+                        for i in range(11):
+                            row.append("")
                     else:
+                        row.append(result.start_position)
+                        row.append(result.finish_position)
                         row.append(result.points)
                         row.append("Y" if result.pole_position else "")
                         row.append("Y" if result.laps_lead > 0 else "")
                         row.append("Y" if result.fastest_lap else "")
                         row.append(result.incidents)
+                        row.append(result.laps_completed)
+                        row.append(result.laps_lead)
+                        row.append(result.mu)
+                        row.append(result.sigma)
                 season_values.append(row)
 
             # Push to the sheets
