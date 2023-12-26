@@ -4,6 +4,7 @@
 import json
 import logging
 import trueskill
+from pathlib import Path
 from trueskill import Rating
 from iracingdataapi.client import irDataClient
 
@@ -177,8 +178,8 @@ class LeagueConfiguration:
         if season_number not in self.google_sheets:
             self.google_sheets[season_number] = GoogleSheet(key, group_tabs)
 
-    def push_results_to_sheets(self, results: League, credentials_filename: str):
-        gdrive = GDrive(credentials_filename)
+    def push_results_to_sheets(self, results: League, credentials_filename: Path):
+        gdrive = GDrive(str(credentials_filename))
         for season, sheet in self.google_sheets.items():
             _ams_logger.info("Pushing " + self._name + " season " + str(season) + " results to sheets")
             gdrive.connect_to_results(sheet.key, sheet.group_tabs)

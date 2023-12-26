@@ -3,8 +3,8 @@ credentials.json
 
 # This files are from development testing and should be removed
 league.json
-resource.json
-resource2.json
+configuration.json
+configuration2.json
 
 
 
