@@ -23,17 +23,11 @@ message GroupRulesData
   repeated GroupRuleData GroupRule = 1;
 }
 
-message SeasonRaceData
-{
-  int32 Season = 1;
-  int32 Race   = 2;
-}
-
 message TimePenaltyData
 {
-  SeasonRaceData SeasonRace = 1;
-  int32          Driver     = 2;
-  int32          Seconds    = 3;
+  int32 Race   = 1;
+  int32 Driver     = 2;
+  int32 Seconds    = 3;
 }
 
 message ScoringSystemData
@@ -79,17 +73,22 @@ message GoogleSheetsData
   repeated GoogleTabData GroupTab = 2;
 }
 
+message SeasonConfigurationData
+{
+  AnyScoringSystemData     ScoringSystem    = 1;
+  int32                    NumDrops         = 2;
+  repeated int32           NonDrivers       = 3;
+  repeated int32           PracticeSessions = 4;
+  GroupRulesData           GroupRules       = 5;
+  repeated TimePenaltyData TimePenalty      = 6;
+  GoogleSheetsData         GoogleSheets     = 7;
+}
+
 message LeagueConfigurationData
 {
-  int32                         iRacingID        = 1;
-  string                        Name             = 2;
-  AnyScoringSystemData          ScoringSystem    = 3;
-  int32                         NumDrops         = 4;
-  repeated int32                NonDrivers       = 5;
-  repeated SeasonRaceData       PracticeRace     = 6;
-  map<int32, GroupRulesData>    SeasonGroupRules = 7;
-  repeated TimePenaltyData      TimePenalty      = 8;
-  map<int32, GoogleSheetsData>  GoogleSheets     = 9; // key is season number
+  int32                               iRacingID = 1;
+  string                              Name      = 2;
+  map<int32, SeasonConfigurationData> Seasons   = 3;
 }
 
 // Data structures for holding iRacing data
@@ -114,17 +113,18 @@ message SeasonData
 
 message DriverData
 {
-  int32     CarNumber          = 1;
-  eGroup    Group              = 2;
-  int32     Points             = 3;
-  int32     TotalFastestLaps   = 4;
-  int32     TotalIncidents     = 5;
-  int32     TotalLapsComplete  = 6;
-  int32     TotalLapsLead      = 7;
-  int32     TotalPolePositions = 8;
-  int32     TotalRaces         = 9;
-  float     Mu                 = 10; // Trueskill
-  float     Sigma              = 11; // Trueskill
+  string    Name               = 1;
+  int32     CarNumber          = 2;
+  eGroup    Group              = 3;
+  int32     Points             = 4;
+  int32     TotalFastestLaps   = 5;
+  int32     TotalIncidents     = 6;
+  int32     TotalLapsComplete  = 7;
+  int32     TotalLapsLead      = 8;
+  int32     TotalPolePositions = 9;
+  int32     TotalRaces         = 10;
+  float     Mu                 = 11;// Trueskill
+  float     Sigma              = 12; // Trueskill
 }
 
 message GroupStatsData // Can't make a map with an enum as key :-(

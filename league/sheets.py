@@ -9,6 +9,8 @@ from operator import itemgetter
 
 from league.objects import League, Group
 
+_ams_logger = logging.getLogger('ams')
+
 
 class GDrive:
     __slots__ = ["_gc",
@@ -32,38 +34,42 @@ class GDrive:
         for group, sheet in sheets.items():
             self._result_sheets[group] = self._results_xls.worksheet(sheet)
 
-    def push_results(self, lg: League, season: int, groups: list) -> None:
+    def push_results(self, lg: League, season: int, groups: list) -> int:
+        count = 0 # Keeping track of sheet update calls, you only get 60/min with free projects
         # gsheets takes a list(list())
         season_values = list()
+
+        dates = list()
+        tracks = list()
 
         season = lg.get_season(season)
         for group in groups:
             season_values.clear()
 
-            # Push track and dates to individual cells since they are merged cells
-            col0 = ''
-            col1 = 'M'
+            dates.clear()
+            tracks.clear()
             for race_number in range(len(season.races)):
                 race = season.get_race(race_number + 1)
-                self._result_sheets[group].update(col0+col1+"2", race.date)
                 track_name = race.track
                 if track_name.count(' ') > 2:
-                    split_at = track_name.find(' ', track_name.find(' ')+1)
+                    split_at = track_name.find(' ', track_name.find(' ') + 1)
                     track_name = race.track[:split_at] + '\n' + race.track[split_at:]
-                self._result_sheets[group].update(col0+col1+"3", track_name)
-                col1 = chr(ord(col1) + 11)  # The cell is a merging of 5 cells
-                if ord(col1) > 90:  # Once we go past Z, start doing two letter columns
-                    if col0 == '':
-                        col0 = 'A'
-                    else:
-                        col0 = chr(ord(col0) + 1)
-                    col1 = chr(ord(col1)-26)
+                for i in range(11):
+                    tracks.append(track_name)
+                    dates.append(race.date)
+                date_values = list().append(dates)
+                track_values = list().append(tracks)
+            date_values = list().append(dates)
+            track_values = list().append(tracks)
+            self._result_sheets[group].update(range_name="M2", values=date_values)
+            self._result_sheets[group].update(range_name="M3", values=track_values)
+            count += 2
 
             for cust_id, driver in season.drivers.items():
                 if driver.group != group:
                     continue
                 row = list()  # Make a list per driver row
-                row.append(lg.get_member(cust_id).name)
+                row.append(driver.name)
                 row.append(driver.car_number)
                 row.append(driver.points)
                 row.append(driver.total_races)
@@ -97,6 +103,8 @@ class GDrive:
             # Push to the sheets
             self._result_sheets[group].update(range_name="B5",
                                               values=sorted(season_values, key=itemgetter(2), reverse=True))
+            count += 1
+        return count
 
 
 if __name__ == "__main__":

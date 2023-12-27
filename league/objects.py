@@ -136,6 +136,7 @@ class Season:
 
 class Driver:
     __slots__ = ["_cust_id",
+                 "_name",
                  "_car_number",  # Can change in season
                  "_group",  # Can change in season
                  "_points",
@@ -149,6 +150,7 @@ class Driver:
 
     def __init__(self, cust_id: int):
         self._cust_id = cust_id
+        self._name = None
         self._car_number = None
         self._group = None
         self._points = None
@@ -163,6 +165,9 @@ class Driver:
 
     @property
     def cust_id(self): return self._cust_id
+
+    @property
+    def name(self): return self._name
 
     @property
     def group(self): return self._group
@@ -372,6 +377,7 @@ def serialize_league_to_string(src: League, fmt: SerializationFormat):
 
         for cust_id, driver in season.drivers.items():
             driver_data = season_data.Drivers[cust_id]
+            driver_data.Name = driver.name
             driver_data.CarNumber = driver.car_number
             driver_data.Group = driver.group.value
             driver_data.Points = driver.points
@@ -438,6 +444,7 @@ def serialize_league_resource_from_bind(src: LeagueData, dst: League):
         season = dst.add_season(season_num)
         for cust_id, driver_data in season_data.Drivers.items():
             driver = season.add_driver(cust_id)
+            driver._name = driver_data.Name
             driver._group = Group(driver_data.Group)
             driver._car_number = driver_data.CarNumber
             driver._points = driver_data.Points
