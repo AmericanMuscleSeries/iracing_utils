@@ -152,6 +152,23 @@ if __name__ == "__main__":
         season.add_google_sheet("1jlybjNg8sQGFuwSPrnNvQRq5SrIX73QUbISNVIp3Clk",
                                 {Group.Pro: "Pro Drivers", Group.Am: "Am Drivers"})
 
+        # Season 6
+        season = cfg.get_season(6)
+        season.num_drops = 2
+        scoring = season.set_linear_decent_scoring(40)
+
+        # Let's give points for these as well, default is 0 points
+        scoring.pole_position = 1
+        scoring.laps_lead = 1
+        scoring.fastest_lap = 0
+
+        # Set up our grouping rules per season
+        season.add_group_rule(Group.Pro, CarNumberRange(0, 99))
+        season.add_group_rule(Group.Am, CarNumberRange(100, 199))
+
+        season.add_google_sheet("1qdMBFll_eZxTF7G9DkaliJ6tm8sADqhHHFhKT8fIy1c",
+                                {Group.Pro: "Pro Drivers", Group.Am: "Am Drivers"})
+
         # Save our league configuration to a json file.
         # Convert the LeagueConfiguration class to a python dict
         d = cfg.as_dict()  # Use this if you would rather work with data in a native python format instead of our classes
@@ -172,7 +189,7 @@ if __name__ == "__main__":
 
         # Let's just fetch and score season 5
         # If you do not provide a season array, all seasons will be pulled and scored
-        lg = cfg.fetch_and_score_league(opts.username, opts.password, [5])
+        lg = cfg.fetch_and_score_league(opts.username, opts.password, [opts.season])
 
         # print_debug_stats(league, 120570)
         # print_debug_stats(league, 609455)

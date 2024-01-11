@@ -403,8 +403,9 @@ class LeagueConfiguration:
                         points.append(0)
                     else:
                         points.append(result.points)
-                for drops in range(season_cfg.num_drops):
-                    points.remove(min(points))
+                if len(points) > 10:
+                    for drops in range(season_cfg.num_drops):
+                        points.remove(min(points))
                 driver._points = sum(points)
 
         # End of looping over every season
@@ -527,6 +528,9 @@ def serialize_league_resource_from_bind(src: LeagueConfigurationData, dst: Leagu
             for group_tab_data in season_data.GoogleSheets.GroupTab:
                 group_tabs[Group(group_tab_data.Group)] = group_tab_data.TabName
             season.add_google_sheet(season_data.GoogleSheets.Key, group_tabs)
+        # if this craps out about an expired token, you need to delete your authorized_user.json file
+        # ex. C:\Users\aaron.bray\AppData\Roaming\gspread\authorized_user.json
+        # The user authorization token you get only lasts 7 days 
 
     return dst
 
