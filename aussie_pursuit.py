@@ -1,6 +1,7 @@
 # Distributed under the Apache License, Version 2.0.
 # See accompanying NOTICE file for details.
 
+import sys
 import logging
 import argparse
 import statistics
@@ -47,13 +48,21 @@ class DriverLaps(Driver):
         Laps must be within 107% of the fastest laps, or they don't count
         :return: None
         """
+        _ams_logger.info("Calculating average lap time for " + self.name + "...")
         laps = list()  # list of laps we will average into a time for our hold calculation
         laps.append(self.lap_times_s[0])
-        if len(self.lap_times_s) >= 2 and self.valid_lap_time(self.lap_times_s[0], self.lap_times_s[1]):
-            laps.append(self.lap_times_s[1])
-        if len(self.lap_times_s) >= 3 and self.valid_lap_time(self.lap_times_s[0], self.lap_times_s[2]):
-            laps.append(self.lap_times_s[2])
+        if len(self.lap_times_s) >= 2:
+            if self.valid_lap_time(self.lap_times_s[0], self.lap_times_s[1]):
+                laps.append(self.lap_times_s[1])
+            else:
+                _ams_logger.info("Ignoring lap 2, as it was too slow (> 107% of the fastest lap)")
+        if len(self.lap_times_s) >= 3:
+            if self.valid_lap_time(self.lap_times_s[0], self.lap_times_s[2]):
+                laps.append(self.lap_times_s[2])
+            else:
+                _ams_logger.info("Ignoring lap 3, as it was too slow (> 107% of the fastest lap)")
         self._average_lap_time_s = statistics.mean(laps)
+        _ams_logger.info("The average lap time for " + self.name + " is " + str(self._average_lap_time_s) + "s.")
 
     def calculate_hold_time(self, estimated_race_time_s: float, num_laps: int) -> float:
         my_estimated_race_time_s = self._average_lap_time_s * num_laps
@@ -62,20 +71,27 @@ class DriverLaps(Driver):
     def use_fastest_ai_average_lap_time(self, drivers: dict):
         """
         If a driver has not set a valid lap time,
-        Get the average from the fastest AI driver for their car class, and take off 2s
+        Get the fastest average lap time from the fastest AI driver for their car class, and take off 2s
         :param drivers: all the drivers in the session
         :return: None
         """
         if self.is_ai():
             _ams_logger.error("Cannot use_fastest_ai_average_lap_time on an ai driver.")
             return
+        _ams_logger.info(self.name + " did not set any valid laps.")
+        _ams_logger.info("Using the fastest average lap time from a bot in the " + self.car_class + ".")
+        fastest_bot = None
         self._average_lap_time_s = 1000
         for driver in drivers.values():
             if driver.is_ai() and driver.car_class == self.car_class:
                 if driver.average_lap_time_s < self._average_lap_time_s:
+                    fastest_bot = driver
                     self._average_lap_time_s = driver.average_lap_time_s
+        _ams_logger.info("Bot " + fastest_bot.name +
+                         " had the fastest average lap time of " + str(fastest_bot.average_lap_time_s))
         # Human driver is expected to go 2s faster than the fastest bot
         self._average_lap_time_s -= 2
+        _ams_logger.info("Setting " + self.name + "'s average lap time to " + str(self._average_lap_time_s))
 
 
 def calculate_black_flags(username: str, password: str, subsession_id: int, num_laps: int):
@@ -119,15 +135,20 @@ def calculate_black_flags(username: str, password: str, subsession_id: int, num_
 
     # Calculate the average lap time of each driver
     # Find the slowest average lap time and multiply by the number of laps we want
-    slowest_race_time_s = 0
+    slowest_driver = None
+    slowest_average_lap_time_s = 0
     for cust_id, driver in drivers.items():
         if len(driver.lap_times_s) > 0:
             driver.calculate_average_lap_time()
-            if slowest_race_time_s < driver.average_lap_time_s:
-                slowest_race_time_s = driver.average_lap_time_s
-    slowest_race_time_s *= num_laps
+            if slowest_average_lap_time_s < driver.average_lap_time_s:
+                slowest_driver = driver
+                slowest_average_lap_time_s = driver.average_lap_time_s
+    slowest_race_time_s = slowest_average_lap_time_s * num_laps
     # This is our estimate of how long the race should last
-    _ams_logger.info("This race is expected to run for "+str(slowest_race_time_s)+"s.")
+    _ams_logger.info("\n")
+    _ams_logger.info("The slowest driver is " + slowest_driver.name +
+                     ", with an average lap time of " + str(slowest_driver.average_lap_time_s))
+    _ams_logger.info("A " + str(num_laps) + " lap race is expected to run for "+str(slowest_race_time_s)+"s.\n\n")
 
     for cust_id, driver in drivers.items():
         if len(driver.lap_times_s) == 0:
@@ -135,12 +156,13 @@ def calculate_black_flags(username: str, password: str, subsession_id: int, num_
         driver.calculate_hold_time(slowest_race_time_s, num_laps)
         _ams_logger.info(driver.name + " is averaging " +
                          str(driver.average_lap_time_s) + "s laps and should be held for " +
-                         str(driver.hold_time_s) + " seconds.")
+                         str(driver.hold_time_s) + " seconds.\n")
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
+    logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s', filename="ams.log", filemode="w")
     logging.getLogger('ams').setLevel(logging.INFO)
+    logging.getLogger().addHandler(logging.StreamHandler(sys.stdout))
 
     parser = argparse.ArgumentParser(description="Pull league results and rack and stack them for presentation")
     parser.add_argument(
