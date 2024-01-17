@@ -100,9 +100,17 @@ class GDrive:
                         row.append(result.sigma)
                 season_values.append(row)
 
+            season_values = sorted(season_values, key=itemgetter(2), reverse=True)
+            # Pad the rest with blanks
+            max_racers = 35
+            if len(season_values) < max_racers:
+                for extra_rows in range(max_racers - len(season_values)):
+                    row = list()
+                    for i in range(33):
+                        row.append("")
+                    season_values.append(row)
             # Push to the sheets
-            self._result_sheets[group].update(range_name="B5",
-                                              values=sorted(season_values, key=itemgetter(2), reverse=True))
+            self._result_sheets[group].update(range_name="B5", values=season_values)
             count += 1
         return count
 

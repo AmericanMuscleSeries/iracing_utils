@@ -1,6 +1,7 @@
 # Distributed under the Apache License, Version 2.0.
 # See accompanying NOTICE file for details.
 
+import os
 import json
 import logging
 import argparse
@@ -203,7 +204,21 @@ if __name__ == "__main__":
 
     # Push our results up to our sheets
     if opts.credentials.exists():
-        cfg.push_results_to_sheets(lg, opts.credentials)
+        try:
+            cfg.push_results_to_sheets(lg, opts.credentials)
+        except Exception as e:
+            print("Failed to upload to google sheets: %s", e)
+            if "Token" in str(e) and "expired" in str(e):
+                # if this craps out about an expired token, I will need to delete your authorized_user.json file
+                # ex. C:\Users\aaron.bray\AppData\Roaming\gspread\authorized_user.json
+                # The user authorization token you get only lasts 7 days
+                # Then you can rerun the program
+                authorized_user_file = Path(os.getenv('APPDATA')+"/gspread/authorized_user.json")
+                print("I have deleted your google sheets authorization file: " + str(authorized_user_file))
+                print("Please select your gmail login in your browser again")
+                authorized_user_file.unlink()
+                cfg.push_results_to_sheets(lg, opts.credentials)
+                # TODO change up the auth type so we don't need to do this
     else:
         print("Could not find credentials file. Not pushing to sheets.")
 
