@@ -93,6 +93,7 @@ class GoogleSheet:
 
 class SeasonConfiguration:
     __slots__ = ["number",
+                 "active",
                  "scoring_system",
                  "num_drops",
                  "non_drivers",
@@ -104,6 +105,7 @@ class SeasonConfiguration:
 
     def __init__(self, number: int):
         self.number = number
+        self.active = False
         self.scoring_system = None
         self.num_drops = 0
         self.non_drivers = list()
@@ -164,13 +166,13 @@ class LeagueConfiguration:
         self.seasons = dict()
 
     def as_dict(self) -> dict:
-        string = serialize_league_resource_to_string(self, SerializationFormat.JSON)
+        string = serialize_league_configuration_to_string(self, SerializationFormat.JSON)
         return json.loads(string)
 
     @staticmethod
     def from_dict(d: dict):
         string = json.dumps(d)
-        return serialize_league_resource_from_string(string, SerializationFormat.JSON)
+        return serialize_league_configuration_from_string(string, SerializationFormat.JSON)
 
     @property
     def ir_id(self): return self._ir_id
@@ -222,12 +224,14 @@ class LeagueConfiguration:
 
             _ams_logger.info("Pulling season " + str(season_num))
             season = lg.add_season(season_num)
+            # TODO We could pull with results_only False to detect if we are in season or not
             ir_sessions = idc.league_season_sessions(self._ir_id, ir_season["season_id"], True)["sessions"]
             _ams_logger.info("There were " + str(len(ir_sessions)) + " sessions in season " + str(season_num))
 
             race_num = 0
             race_session_num = 0
             for session_num, ir_session in enumerate(ir_sessions):
+                track_name = ir_session["track"]["track_name"]
                 ir_subsession = idc.result(subsession_id=ir_session["subsession_id"])["session_results"]
                 # Skip the session if there was no race
                 ir_race_results = None
@@ -235,24 +239,26 @@ class LeagueConfiguration:
                     if ir_event["simsession_type"] == 6:
                         ir_race_results = ir_event
                 if ir_race_results is None:
-                    _ams_logger.info("Session " + str(session_num) + " was not a race.")
+                    _ams_logger.info("Session " + str(session_num) + " at " + track_name + " was not a race.")
                     continue
 
                 # Check if this race event was a practice race
                 race_session_num += 1
                 if race_session_num in season_cfg.practice_sessions:
-                    _ams_logger.info("Session " + str(session_num) + " was a practice race. Skipping it.")
+                    _ams_logger.info("Session " + str(session_num) + " at " + track_name +
+                                     " was a practice race. Skipping it.")
                     continue
 
                 #  This is an actual race we are going to score
                 race_num += 1
-                _ams_logger.info("Session " + str(session_num) + " was a race!")
+                _ams_logger.info("Session " + str(session_num) + " was a race at " + track_name)
                 _ams_logger.info("Processing it as race " + str(race_num))
 
                 race = season.add_race(race_num, ir_session["launch_at"].split('T')[0], ir_session["track"]["track_name"])
 
                 ir_car_results = ir_race_results["results"]
                 # all_laps = idc.result_lap_chart_data(subsession_id=session["subsession_id"])
+                ir_total_laps = ir_car_results[0]["laps_complete"]
 
                 # Loop over every driver in this race
                 for ir_car_result in ir_car_results:
@@ -274,8 +280,15 @@ class LeagueConfiguration:
                         _ams_logger.info("Adding " + driver._name + " to members.")
                     else:
                         driver._name = member.name
-                    driver_car_number = int(ir_car_result["livery"]["car_number"])
-                    driver.set_car_number(driver_car_number, season_cfg.get_group(driver_car_number))
+                        # We only want to use the league number, if this season is an active season
+                        if season_cfg.active:
+                            for lg_member in ir_league_info["roster"]:
+                                if lg_member["cust_id"] == cust_id:
+                                    driver_car_number = int(lg_member["car_number"])
+                                    driver.set_car_number(driver_car_number, season_cfg.get_group(driver_car_number))
+                    if driver.car_number is None:
+                        driver_car_number = int(ir_car_result["livery"]["car_number"])
+                        driver.set_car_number(driver_car_number, season_cfg.get_group(driver_car_number))
 
                     # Just book keep, we will rack, stack, and score later
                     result = race.add_result(cust_id)
@@ -285,12 +298,21 @@ class LeagueConfiguration:
                     result._incidents = ir_car_result["incidents"]
                     result._laps_completed = ir_car_result["laps_complete"]
                     result._laps_lead = ir_car_result["laps_lead"]
+                    result._clean_driver_points = 0
+                    if result._laps_completed >= ir_total_laps*0.5:
+                        if result._incidents == 0:
+                            result._clean_driver_points = 3
+                        elif result._incidents == 1:
+                            result._clean_driver_points = 2
+                        elif result._incidents <= 4:
+                            result._clean_driver_points = 1
 
                     # Increment driver counters
                     driver._total_races += 1
                     driver._total_incidents += result._incidents
                     driver._total_laps_lead += result._laps_lead
                     driver._total_laps_complete += result._laps_completed
+                    driver._clean_driver_points += result._clean_driver_points
 
                     # End of looping over every driver in a race
 
@@ -413,9 +435,9 @@ class LeagueConfiguration:
         return lg
 
 
-def serialize_league_resource_to_string(src: LeagueConfiguration, fmt: SerializationFormat) -> str:
+def serialize_league_configuration_to_string(src: LeagueConfiguration, fmt: SerializationFormat) -> str:
     dst = LeagueConfigurationData()
-    serialize_league_resource_to_bind(src, dst)
+    serialize_league_configuration_to_bind(src, dst)
 
     if fmt == SerializationFormat.JSON or fmt == SerializationFormat.VERBOSE_JSON:
         verbose = True if fmt == SerializationFormat.VERBOSE_JSON else False
@@ -426,7 +448,7 @@ def serialize_league_resource_to_string(src: LeagueConfiguration, fmt: Serializa
         return dst.SerializeToString()
 
 
-def serialize_league_resource_to_bind(src: LeagueConfiguration, dst: LeagueConfigurationData):
+def serialize_league_configuration_to_bind(src: LeagueConfiguration, dst: LeagueConfigurationData):
     dst.iRacingID = src.ir_id
     if src.name is not None:
         dst.Name = src.name
@@ -446,6 +468,7 @@ def serialize_league_resource_to_bind(src: LeagueConfiguration, dst: LeagueConfi
             season_data.ScoringSystem.Assignment.Base.FastestLap = season.scoring_system.fastest_lap
             season_data.ScoringSystem.Assignment.Base.LapsLead = season.scoring_system.laps_lead
 
+        season_data.Active = season.active
         season_data.NumDrops = season.num_drops
 
         for cust_id in season.non_drivers:
@@ -476,7 +499,7 @@ def serialize_league_resource_to_bind(src: LeagueConfiguration, dst: LeagueConfi
             season_data.GoogleSheets.GroupTab.append(group_tab_data)
 
 
-def serialize_league_resource_from_string(src: str, fmt: SerializationFormat) -> LeagueConfiguration:
+def serialize_league_configuration_from_string(src: str, fmt: SerializationFormat) -> LeagueConfiguration:
     lrd = LeagueConfigurationData()
     if fmt == SerializationFormat.JSON or fmt == SerializationFormat.VERBOSE_JSON:
         json_format.Parse(src, lrd)
@@ -485,11 +508,11 @@ def serialize_league_resource_from_string(src: str, fmt: SerializationFormat) ->
     else:
         lrd.ParseFromString(src)
     dst = LeagueConfiguration(lrd.iRacingID)
-    serialize_league_resource_from_bind(lrd, dst)
+    serialize_league_configuration_from_bind(lrd, dst)
     return dst
 
 
-def serialize_league_resource_from_bind(src: LeagueConfigurationData, dst: LeagueConfiguration):
+def serialize_league_configuration_from_bind(src: LeagueConfigurationData, dst: LeagueConfiguration):
     dst._name = src.Name
 
     for season_num, season_data in src.Seasons.items():
@@ -507,6 +530,7 @@ def serialize_league_resource_from_bind(src: LeagueConfigurationData, dst: Leagu
             scoring.laps_lead = season_data.ScoringSystem.Assignment.Base.LapsLead
             scoring.fastest_lap = season_data.ScoringSystem.Assignment.Base.FastestLap
 
+        season.active = season_data.Active
         season.num_drops = season_data.NumDrops
 
         season.add_non_drivers(season_data.NonDrivers)

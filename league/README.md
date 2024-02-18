@@ -1,5 +1,11 @@
 ## League Support
 
+### Implementation Notes
+
+Using Protobuf to setup the data model
+When updating the objects.proto, run (from this directory):
+`protoc.exe --python_out=. objects.proto`
+
 ### Scoring
 
 As part of our scoring system, we include the [TrueSkill library](

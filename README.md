@@ -17,4 +17,4 @@ An aussie pursuit race is a multiclass race where each driver gets a penalty tim
 The intent of the penalties is to time them so that all drivers in all cars all have the ability to cross the finish line at the same time.
 
 `score_league.py` - Pull all data associated with a iRacing league and score one or more seasons using our scoring methodology.
-This also provides a mechanism for publishing scores to a google sheet.
+This also provides a mechanism for publishing scores to a Google sheet.

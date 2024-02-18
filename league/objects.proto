@@ -75,13 +75,14 @@ message GoogleSheetsData
 
 message SeasonConfigurationData
 {
-  AnyScoringSystemData     ScoringSystem    = 1;
-  int32                    NumDrops         = 2;
-  repeated int32           NonDrivers       = 3;
-  repeated int32           PracticeSessions = 4;
-  GroupRulesData           GroupRules       = 5;
-  repeated TimePenaltyData TimePenalty      = 6;
-  GoogleSheetsData         GoogleSheets     = 7;
+  bool                     Active           = 1;
+  AnyScoringSystemData     ScoringSystem    = 2;
+  int32                    NumDrops         = 3;
+  repeated int32           NonDrivers       = 4;
+  repeated int32           PracticeSessions = 5;
+  GroupRulesData           GroupRules       = 6;
+  repeated TimePenaltyData TimePenalty      = 7;
+  GoogleSheetsData         GoogleSheets     = 8;
 }
 
 message LeagueConfigurationData
@@ -117,14 +118,15 @@ message DriverData
   int32     CarNumber          = 2;
   eGroup    Group              = 3;
   int32     Points             = 4;
-  int32     TotalFastestLaps   = 5;
-  int32     TotalIncidents     = 6;
-  int32     TotalLapsComplete  = 7;
-  int32     TotalLapsLead      = 8;
-  int32     TotalPolePositions = 9;
-  int32     TotalRaces         = 10;
-  float     Mu                 = 11;// Trueskill
-  float     Sigma              = 12; // Trueskill
+  int32     CleanDriverPoints  = 5;
+  int32     TotalFastestLaps   = 6;
+  int32     TotalIncidents     = 7;
+  int32     TotalLapsComplete  = 8;
+  int32     TotalLapsLead      = 9;
+  int32     TotalPolePositions = 10;
+  int32     TotalRaces         = 11;
+  float     Mu                 = 12;// Trueskill
+  float     Sigma              = 13; // Trueskill
 }
 
 message GroupStatsData // Can't make a map with an enum as key :-(
@@ -147,16 +149,17 @@ message RaceData
 
 message ResultData
 {
-  bool   PolePosition   = 1;
-  bool   FastestLap     = 2;
-  int32  StartPosition  = 3;
-  int32  FinishPosition = 4;
-  int32  Points         = 5;
-  float  Interval       = 6;
-  int32  Incidents      = 7;
-  int32  LapsCompleted  = 8;
-  int32  LapsLead       = 9;
-  float  Mu             = 10; // Trueskill
-  float  Sigma          = 11; // Trueskill
+  bool   PolePosition      = 1;
+  bool   FastestLap        = 2;
+  int32  StartPosition     = 3;
+  int32  FinishPosition    = 4;
+  int32  Points            = 5;
+  int32  CleanDriverPoints = 6;
+  float  Interval          = 7;
+  int32  Incidents         = 8;
+  int32  LapsCompleted     = 9;
+  int32  LapsLead          = 10;
+  float  Mu                = 11; // Trueskill
+  float  Sigma             = 12; // Trueskill
 }
 

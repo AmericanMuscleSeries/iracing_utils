@@ -109,6 +109,7 @@ class Season:
         if cust_id not in self.drivers:
             driver = Driver(cust_id)
             driver._points = 0
+            driver._clean_driver_points = 0
             driver._total_fastest_laps = 0
             driver._total_incidents = 0
             driver._total_laps_complete = 0
@@ -140,6 +141,7 @@ class Driver:
                  "_car_number",  # Can change in season
                  "_group",  # Can change in season
                  "_points",
+                 "_clean_driver_points",
                  "_total_fastest_laps",
                  "_total_incidents",
                  "_total_laps_complete",
@@ -154,6 +156,7 @@ class Driver:
         self._car_number = None
         self._group = None
         self._points = None
+        self._clean_driver_points = None
         self._total_fastest_laps = None
         self._total_incidents = None
         self._total_laps_complete = None
@@ -177,6 +180,9 @@ class Driver:
 
     @property
     def points(self): return self._points
+
+    @property
+    def clean_driver_points(self): return self._clean_driver_points
 
     @property
     def total_fastest_laps(self): return self._total_fastest_laps
@@ -306,6 +312,7 @@ class Result:
                  "_start_position",
                  "_finish_position",
                  "_points",
+                 "_clean_driver_points",
                  "_interval",
                  "_incidents",
                  "_laps_completed",
@@ -320,6 +327,7 @@ class Result:
         self._finish_position = None
         self._interval = None
         self._points = None
+        self._clean_driver_points = None
         self._incidents = None
         self._laps_completed = None
         self._laps_lead = None
@@ -346,6 +354,9 @@ class Result:
 
     @property
     def points(self): return self._points
+
+    @property
+    def clean_driver_points(self): return self._clean_driver_points
 
     @property
     def incidents(self): return self._incidents
@@ -381,6 +392,7 @@ def serialize_league_to_string(src: League, fmt: SerializationFormat):
             driver_data.CarNumber = driver.car_number
             driver_data.Group = driver.group.value
             driver_data.Points = driver.points
+            driver_data.CleanDriverPoints = driver.clean_driver_points
             driver_data.TotalFastestLaps = driver.total_fastest_laps
             driver_data.TotalIncidents = driver.total_incidents
             driver_data.TotalLapsComplete = driver.total_laps_complete
@@ -413,6 +425,7 @@ def serialize_league_to_string(src: League, fmt: SerializationFormat):
                 results_data.StartPosition = result.start_position
                 results_data.FinishPosition = result.finish_position
                 results_data.Points = result.points
+                results_data.CleanDriverPoints = result.clean_driver_points
                 results_data.Interval = result.interval
                 results_data.Incidents = result.incidents
                 results_data.LapsCompleted = result.laps_completed
@@ -432,11 +445,11 @@ def serialize_league_from_string(src: str, fmt: SerializationFormat) -> League:
     else:
         league_data.ParseFromString(src)
     dst = League()
-    serialize_league_resource_from_bind(league_data, dst)
+    serialize_league_data_from_bind(league_data, dst)
     return dst
 
 
-def serialize_league_resource_from_bind(src: LeagueData, dst: League):
+def serialize_league_data_from_bind(src: LeagueData, dst: League):
     for cust_id, member_data in src.Members.items():
         dst.add_member(cust_id, member_data.Name, member_data.Nickname)
 
@@ -448,6 +461,7 @@ def serialize_league_resource_from_bind(src: LeagueData, dst: League):
             driver._group = Group(driver_data.Group)
             driver._car_number = driver_data.CarNumber
             driver._points = driver_data.Points
+            driver._clean_driver_points = driver.CleanDriverPoints
             driver._total_fastest_laps = driver_data.TotalFastestLaps
             driver._total_incidents = driver_data.TotalIncidents
             driver._total_laps_complete = driver_data.TotalLapsComplete
@@ -476,6 +490,7 @@ def serialize_league_resource_from_bind(src: LeagueData, dst: League):
                 result._start_position = result_data.StartPosition
                 result._finish_position = result_data.FinishPosition
                 result._points = result_data.Points
+                result._clean_driver_points = result_data.CleanDriverPoints
                 result._interval = result_data.Interval
                 result._incidents = result_data.Incidents
                 result._laps_completed = result_data.LapsCompleted

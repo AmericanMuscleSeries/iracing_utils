@@ -2,6 +2,7 @@
 # See accompanying NOTICE file for details.
 
 import os
+import sys
 import json
 import logging
 import argparse
@@ -11,8 +12,9 @@ from league.config import LeagueConfiguration, Group, CarNumberRange
 from league.objects import print_debug_stats
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
+    logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s', filename="ams.log", filemode="w")
     logging.getLogger('ams').setLevel(logging.INFO)
+    logging.getLogger().addHandler(logging.StreamHandler(sys.stdout))
 
     parser = argparse.ArgumentParser(description="Pull league results and rack and stack them for presentation")
     parser.add_argument(
@@ -155,6 +157,9 @@ if __name__ == "__main__":
 
         # Season 6
         season = cfg.get_season(6)
+        season.active = True  # Use this to use current league assigned numbers for all cars instead of race numbers
+        # This is for updating scores midweek on a number change
+        # If False, cars will use the last race number assigned to figure out their grouping
         season.num_drops = 2
         scoring = season.set_linear_decent_scoring(40)
 
@@ -167,12 +172,18 @@ if __name__ == "__main__":
         season.add_group_rule(Group.Pro, CarNumberRange(0, 99))
         season.add_group_rule(Group.Am, CarNumberRange(100, 199))
 
+        # Ignore practice races
+        season.add_practice_sessions([1, 2])
+
         season.add_google_sheet("1qdMBFll_eZxTF7G9DkaliJ6tm8sADqhHHFhKT8fIy1c",
                                 {Group.Pro: "Pro Drivers", Group.Am: "Am Drivers"})
 
+        # Apply Penalties
+        season.add_time_penalty(2, 310239, 10)
+
         # Save our league configuration to a json file.
         # Convert the LeagueConfiguration class to a python dict
-        d = cfg.as_dict()  # Use this if you would rather work with data in a native python format instead of our classes
+        d = cfg.as_dict()  # Use this to work with data in a native python format instead of our classes
         # Dump the dict to json
         with open("configuration.json", 'w') as fp:
             json.dump(d, fp, indent=2)
