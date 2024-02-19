@@ -85,7 +85,7 @@ class GDrive:
                 for race_number in range(len(season.races)):
                     result = season.get_race(race_number+1).get_result(cust_id)
                     if result is None:
-                        for i in range(11):
+                        for i in range(12):
                             row.append("")
                     else:
                         row.append(result.start_position)
