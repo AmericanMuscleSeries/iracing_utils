@@ -11,6 +11,12 @@ enum eGroup
   Am=2;
 }
 
+enum eSortBy
+{
+  Earned=0;
+  ForcedDrops=1;
+}
+
 message GroupRuleData
 {
   int32     MinCarNumber   = 1;
@@ -83,6 +89,7 @@ message SeasonConfigurationData
   GroupRulesData           GroupRules       = 6;
   repeated TimePenaltyData TimePenalty      = 7;
   GoogleSheetsData         GoogleSheets     = 8;
+  eSortBy                  SortBy           = 9;
 }
 
 message LeagueConfigurationData
@@ -117,16 +124,17 @@ message DriverData
   string    Name               = 1;
   int32     CarNumber          = 2;
   eGroup    Group              = 3;
-  int32     Points             = 4;
-  int32     CleanDriverPoints  = 5;
-  int32     TotalFastestLaps   = 6;
-  int32     TotalIncidents     = 7;
-  int32     TotalLapsComplete  = 8;
-  int32     TotalLapsLead      = 9;
-  int32     TotalPolePositions = 10;
-  int32     TotalRaces         = 11;
-  float     Mu                 = 12;// Trueskill
-  float     Sigma              = 13; // Trueskill
+  int32     EarnedPoints       = 4;
+  int32     DropPoints         = 5;
+  int32     CleanDriverPoints  = 6;
+  int32     TotalFastestLaps   = 7;
+  int32     TotalIncidents     = 8;
+  int32     TotalLapsComplete  = 9;
+  int32     TotalLapsLead      = 10;
+  int32     TotalPolePositions = 11;
+  int32     TotalRaces         = 12;
+  float     Mu                 = 13;// Trueskill
+  float     Sigma              = 14; // Trueskill
 }
 
 message GroupStatsData // Can't make a map with an enum as key :-(

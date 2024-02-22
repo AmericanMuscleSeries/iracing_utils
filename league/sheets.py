@@ -7,7 +7,7 @@ import gspread
 import argparse
 from operator import itemgetter
 
-from league.objects import League, Group
+from league.objects import League, Group, SortBy
 
 _ams_logger = logging.getLogger('ams')
 
@@ -34,7 +34,7 @@ class GDrive:
         for group, sheet in sheets.items():
             self._result_sheets[group] = self._results_xls.worksheet(sheet)
 
-    def push_results(self, lg: League, season: int, groups: list) -> int:
+    def push_results(self, lg: League, season: int, groups: list, sort_by: SortBy) -> int:
         count = 0 # Keeping track of sheet update calls, you only get 60/min with free projects
         # gsheets takes a list(list())
         season_values = list()
@@ -71,8 +71,8 @@ class GDrive:
                 row = list()  # Make a list per driver row
                 row.append(driver.name)
                 row.append(driver.car_number)
-                row.append(driver.points)
-                row.append(driver.total_races)
+                row.append(driver.earned_points)
+                row.append(driver.earned_points-driver.drop_points)
                 row.append(driver.clean_driver_points)
                 row.append(driver.total_incidents)
                 row.append(driver.total_pole_positions)
@@ -102,7 +102,8 @@ class GDrive:
                         row.append("{:.2f}".format(result.sigma))
                 season_values.append(row)
 
-            season_values = sorted(season_values, key=itemgetter(2), reverse=True)
+            sort_idx = 2 if sort_by == SortBy.Earned else 3
+            season_values = sorted(season_values, key=itemgetter(sort_idx), reverse=True)
             # Pad the rest with blanks
             max_racers = 35
             if len(season_values) < max_racers:

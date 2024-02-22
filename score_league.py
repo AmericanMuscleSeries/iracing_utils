@@ -8,7 +8,7 @@ import logging
 import argparse
 from pathlib import Path
 
-from league.config import LeagueConfiguration, Group, CarNumberRange
+from league.config import LeagueConfiguration, Group, CarNumberRange, SortBy
 from league.objects import print_debug_stats
 
 if __name__ == "__main__":
@@ -158,6 +158,7 @@ if __name__ == "__main__":
         # Season 6
         season = cfg.get_season(6)
         season.active = True  # Use this to use current league assigned numbers for all cars instead of race numbers
+        season.sort_by = SortBy.ForcedDrops
         # This is for updating scores midweek on a number change
         # If False, cars will use the last race number assigned to figure out their grouping
         season.num_drops = 2

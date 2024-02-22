@@ -11,7 +11,7 @@ from iracingdataapi.client import irDataClient
 from google.protobuf import json_format, text_format
 from league.objects_pb2 import *
 
-from league.objects import Group, SerializationFormat, League
+from league.objects import Group, SerializationFormat, SortBy, League
 from league.sheets import GDrive
 
 
@@ -94,6 +94,7 @@ class GoogleSheet:
 class SeasonConfiguration:
     __slots__ = ["number",
                  "active",
+                 "sort_by",
                  "scoring_system",
                  "num_drops",
                  "non_drivers",
@@ -106,6 +107,7 @@ class SeasonConfiguration:
     def __init__(self, number: int):
         self.number = number
         self.active = False
+        self.sort_by = SortBy.Earned
         self.scoring_system = None
         self.num_drops = 0
         self.non_drivers = list()
@@ -200,7 +202,7 @@ class LeagueConfiguration:
             _ams_logger.info("Pushing " + self._name + " season " + str(season_num) + " results to sheets")
             # TODO These two methods should probably be one
             gdrive.connect_to_results(season.google_sheet.key, season.google_sheet.group_tabs)
-            cnt = gdrive.push_results(lg, season_num, list(season.google_sheet.group_tabs.keys()))
+            cnt = gdrive.push_results(lg, season_num, list(season.google_sheet.group_tabs.keys()), season.sort_by)
             _ams_logger.info("Executed " + str(cnt) + " update calls")
 
     def fetch_and_score_league(self, username: str, password: str, specific_seasons: list = None) -> League:
@@ -425,10 +427,10 @@ class LeagueConfiguration:
                         points.append(0)
                     else:
                         points.append(result.points)
-                if len(points) > 10:
-                    for drops in range(season_cfg.num_drops):
-                        points.remove(min(points))
-                driver._points = sum(points)
+                driver._earned_points = sum(points)
+                driver._drop_points = 0
+                if 0 < season_cfg.num_drops < len(points):
+                    driver._drop_points = sum(sorted(points)[:season_cfg.num_drops])
 
         # End of looping over every season
 
@@ -498,6 +500,8 @@ def serialize_league_configuration_to_bind(src: LeagueConfiguration, dst: League
             group_tab_data.TabName = name
             season_data.GoogleSheets.GroupTab.append(group_tab_data)
 
+        season_data.SortBy = season.sort_by.value
+
 
 def serialize_league_configuration_from_string(src: str, fmt: SerializationFormat) -> LeagueConfiguration:
     lrd = LeagueConfigurationData()
@@ -552,6 +556,8 @@ def serialize_league_configuration_from_bind(src: LeagueConfigurationData, dst: 
             for group_tab_data in season_data.GoogleSheets.GroupTab:
                 group_tabs[Group(group_tab_data.Group)] = group_tab_data.TabName
             season.add_google_sheet(season_data.GoogleSheets.Key, group_tabs)
+
+        season.sort_by = SortBy(season_data.SortBy)
 
     return dst
 

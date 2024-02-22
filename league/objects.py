@@ -24,6 +24,11 @@ class SerializationFormat(Enum):
     TEXT = 3
 
 
+class SortBy(Enum):
+    Earned = 0
+    ForcedDrops = 1
+
+
 class League:
     __slots__ = ["members", "seasons"]
 
@@ -108,7 +113,8 @@ class Season:
     def add_driver(self, cust_id: int):
         if cust_id not in self.drivers:
             driver = Driver(cust_id)
-            driver._points = 0
+            driver._earned_points = 0
+            driver._drop_points = 0
             driver._clean_driver_points = 0
             driver._total_fastest_laps = 0
             driver._total_incidents = 0
@@ -140,7 +146,8 @@ class Driver:
                  "_name",
                  "_car_number",  # Can change in season
                  "_group",  # Can change in season
-                 "_points",
+                 "_earned_points",
+                 "_drop_points",
                  "_clean_driver_points",
                  "_total_fastest_laps",
                  "_total_incidents",
@@ -155,7 +162,8 @@ class Driver:
         self._name = None
         self._car_number = None
         self._group = None
-        self._points = None
+        self._earned_points = None
+        self._drop_points = None
         self._clean_driver_points = None
         self._total_fastest_laps = None
         self._total_incidents = None
@@ -179,7 +187,10 @@ class Driver:
     def car_number(self): return self._car_number
 
     @property
-    def points(self): return self._points
+    def earned_points(self): return self._earned_points
+
+    @property
+    def drop_points(self): return self._drop_points
 
     @property
     def clean_driver_points(self): return self._clean_driver_points
@@ -391,7 +402,8 @@ def serialize_league_to_string(src: League, fmt: SerializationFormat):
             driver_data.Name = driver.name
             driver_data.CarNumber = driver.car_number
             driver_data.Group = driver.group.value
-            driver_data.Points = driver.points
+            driver_data.EarnedPoints = driver.earned_points
+            driver_data.DropPoints = driver.drop_points
             driver_data.CleanDriverPoints = driver.clean_driver_points
             driver_data.TotalFastestLaps = driver.total_fastest_laps
             driver_data.TotalIncidents = driver.total_incidents
@@ -460,7 +472,8 @@ def serialize_league_data_from_bind(src: LeagueData, dst: League):
             driver._name = driver_data.Name
             driver._group = Group(driver_data.Group)
             driver._car_number = driver_data.CarNumber
-            driver._points = driver_data.Points
+            driver._earned_points = driver_data.EarnedPoints
+            driver._drop_points = driver_data.DropPoints
             driver._clean_driver_points = driver.CleanDriverPoints
             driver._total_fastest_laps = driver_data.TotalFastestLaps
             driver._total_incidents = driver_data.TotalIncidents
