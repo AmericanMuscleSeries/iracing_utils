@@ -8,7 +8,7 @@ import logging
 import argparse
 from pathlib import Path
 
-from league.config import LeagueConfiguration, Group, CarNumberRange, SortBy
+from league.league import LeagueConfiguration, Group, CarNumberRange, SortBy
 from league.objects import print_debug_stats
 
 if __name__ == "__main__":
@@ -181,6 +181,7 @@ if __name__ == "__main__":
 
         # Apply Penalties
         season.add_time_penalty(2, 310239, 10)
+        season.add_time_penalty(6, 189468, 10)
 
         # Save our league configuration to a json file.
         # Convert the LeagueConfiguration class to a python dict
