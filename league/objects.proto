@@ -122,19 +122,21 @@ message SeasonData
 message DriverData
 {
   string    Name               = 1;
-  int32     CarNumber          = 2;
-  eGroup    Group              = 3;
-  int32     EarnedPoints       = 4;
-  int32     DropPoints         = 5;
-  int32     CleanDriverPoints  = 6;
-  int32     TotalFastestLaps   = 7;
-  int32     TotalIncidents     = 8;
-  int32     TotalLapsComplete  = 9;
-  int32     TotalLapsLead      = 10;
-  int32     TotalPolePositions = 11;
-  int32     TotalRaces         = 12;
-  float     Mu                 = 13;// Trueskill
-  float     Sigma              = 14; // Trueskill
+  int32     OldRating          = 2;
+  int32     NewRating          = 3;
+  int32     CarNumber          = 4;
+  eGroup    Group              = 5;
+  int32     EarnedPoints       = 6;
+  int32     DropPoints         = 7;
+  int32     CleanDriverPoints  = 8;
+  int32     TotalFastestLaps   = 9;
+  int32     TotalIncidents     = 10;
+  int32     TotalLapsComplete  = 11;
+  int32     TotalLapsLead      = 12;
+  int32     TotalPolePositions = 13;
+  int32     TotalRaces         = 14;
+  float     Mu                 = 15;// Trueskill
+  float     Sigma              = 16; // Trueskill
 }
 
 message GroupStatsData // Can't make a map with an enum as key :-(
@@ -169,5 +171,36 @@ message ResultData
   int32  LapsLead          = 10;
   float  Mu                = 11; // Trueskill
   float  Sigma             = 12; // Trueskill
+}
+
+message EventData
+{
+  string                      Name         = 1;
+  int32                       NumSplits    = 2;
+  bool                        IsMulticlass = 3;
+  map<int32, EventResultData> Results      = 4; // Key=Split
+}
+
+message EventResultData
+{
+  int32                    StrengthOfField = 1;
+  string                   URL             = 2;
+  map<string, int32>       NumCategoryCars = 3; // Key is category
+  map<string, int32>       NumCategoryLaps = 4; // Key is category
+  map<int32,EventTeamData> Teams           = 5; // Key is iracing team id
+}
+
+message EventTeamData
+{
+  string                   Name                  = 1;
+  string                   Category              = 2;
+  string                   Car                   = 3;
+  string                   ReasonOut             = 4;
+  int32                    FinishPosition        = 5;
+  int32                    FinishPositionInClass = 6;
+  int32                    TotalIncidents        = 7;
+  int32                    TotalLapsComplete     = 8;
+  map<int32, DriverData>   Drivers               = 9;  // Key is driver iracing id
+  map<int32, MemberData>   Members               = 10; // Key is driver iracing id
 }
 

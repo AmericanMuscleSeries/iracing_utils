@@ -1,5 +1,7 @@
 numpy
+pandas
 protobuf
 iracingdataapi
 trueskill
 gspread
+dataframe_image

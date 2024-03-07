@@ -205,7 +205,7 @@ class LeagueConfiguration:
             cnt = gdrive.push_results(lg, season_num, list(season.google_sheet.group_tabs.keys()), season.sort_by)
             _ams_logger.info("Executed " + str(cnt) + " update calls")
 
-    def fetch_and_score_league(self, username: str, password: str, specific_seasons: list = None) -> League:
+    def fetch_league(self, username: str, password: str):
         lg = League()
         # Pull everything from iracing
         idc = irDataClient(username, password)
@@ -215,7 +215,13 @@ class LeagueConfiguration:
         _ams_logger.info("There are " + str(len(ir_league_info["roster"])) + " members in this league")
         for ir_member in ir_league_info["roster"]:
             lg.add_member(ir_member["cust_id"], ir_member["display_name"], ir_member["nick_name"])
+        return lg
 
+    def fetch_and_score_league(self, username: str, password: str, specific_seasons: list = None) -> League:
+        lg = self.fetch_league(username, password)
+
+        idc = irDataClient(username, password)
+        ir_league_info = idc.league_get(self._ir_id)  # TODO replace with lg below
         ir_seasons = idc.league_seasons(self._ir_id, True)["seasons"]
         _ams_logger.info("Found " + str(len(ir_seasons)) + " seasons")
         for season_num, ir_season in enumerate(ir_seasons):
@@ -288,6 +294,8 @@ class LeagueConfiguration:
                                 if lg_member["cust_id"] == cust_id:
                                     driver_car_number = int(lg_member["car_number"])
                                     driver.set_car_number(driver_car_number, season_cfg.get_group(driver_car_number))
+                    if "Sudenga" in driver.name:
+                        print("Here")
                     if driver.car_number is None:
                         driver_car_number = int(ir_car_result["livery"]["car_number"])
                         driver.set_car_number(driver_car_number, season_cfg.get_group(driver_car_number))
@@ -400,7 +408,6 @@ class LeagueConfiguration:
                     race_stats._num_drivers += 1
                     race_stats.check_if_pole_position(result.cust_id, result.start_position)
                     race_stats.check_if_fastest_lap(result.cust_id, result.fastest_lap)
-
 
                 # Now push those stats back into the results and drivers
                 for stat in race.stats.values():
