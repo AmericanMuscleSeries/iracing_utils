@@ -182,6 +182,7 @@ if __name__ == "__main__":
         # Apply Penalties
         season.add_time_penalty(2, 310239, 10)
         season.add_time_penalty(6, 189468, 10)
+        season.add_time_penalty(7, 85279, 5)
 
         # Save our league configuration to a json file.
         # Convert the LeagueConfiguration class to a python dict
