@@ -444,14 +444,20 @@ class Event:
 
 
 class EventResult:
-    __slots__ = ["_sof", "_url", "_num_cars", "_num_laps", "_teams"]
+    __slots__ = ["_sof", "_soc", "_url", "_num_cars", "_num_laps", "_teams"]
 
     def __init__(self, sof: int, url: str):
         self._sof = sof
         self._url = url
         self._num_cars = {}
         self._num_laps = {}
+        self._soc = {}
         self._teams = {}
+
+    def add_category(self, category: str, sof: int):
+        self._num_cars[category] = 0
+        self._num_laps[category] = 0
+        self._soc[category] = sof
 
     def add_team(self, team_id: str, category: str, name: str, car: str):
         if team_id in self._teams:
@@ -469,11 +475,6 @@ class EventResult:
         return teams
 
     def count_cars_and_laps(self, category: str, num_laps):
-        if category not in self._num_cars:
-            self._num_cars[category] = 0
-        if category not in self._num_laps:
-            self._num_laps[category] = 0
-
         self._num_cars[category] += 1
         if num_laps > self._num_laps[category]:
             self._num_laps[category] = num_laps
@@ -496,6 +497,9 @@ class EventResult:
     @property
     def total_laps(self):
         return max(self._num_laps.values())
+
+    def strength_of_category(self, category: str):
+        return self._soc[category]
 
 
 class EventTeam:
@@ -707,6 +711,8 @@ def serialize_event_to_string(src: Event, fmt: SerializationFormat) -> str:
             result_data.NumCategoryCars[category] = num_cars
         for category, num_laps in result._num_laps.items():
             result_data.NumCategoryLaps[category] = num_laps
+        for category, sof in result._soc.items():
+            result_data.StrengthOfCategory[category] = sof
 
         for team_id, team in result._teams.items():
             team_data = result_data.Teams[team_id]
@@ -759,6 +765,8 @@ def serialize_event_data_from_bind(src: EventData, dst: Event):
             result._num_cars[category] = num_cars
         for category, num_laps in result_data.NumCategoryLaps.items():
             result._num_laps[category] = num_laps
+        for category, sof in result_data.StrengthOfCategory.items():
+            result._soc[category] = sof
 
         for team_id, team_data in result_data.Teams.items():
             team = result.add_team(team_id, team_data.Category, team_data.Name, team_data.Car)

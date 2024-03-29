@@ -183,11 +183,12 @@ message EventData
 
 message EventResultData
 {
-  int32                    StrengthOfField = 1;
-  string                   URL             = 2;
-  map<string, int32>       NumCategoryCars = 3; // Key is category
-  map<string, int32>       NumCategoryLaps = 4; // Key is category
-  map<int32,EventTeamData> Teams           = 5; // Key is iracing team id
+  int32                    StrengthOfField    = 1;
+  string                   URL                = 2;
+  map<string, int32>       StrengthOfCategory = 3; // Key is category
+  map<string, int32>       NumCategoryCars    = 4; // Key is category
+  map<string, int32>       NumCategoryLaps    = 5; // Key is category
+  map<int32,EventTeamData> Teams              = 6; // Key is iracing team id
 }
 
 message EventTeamData

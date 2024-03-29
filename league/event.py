@@ -68,6 +68,8 @@ def pull_event(username: str, password: str, name: str, log: bool = False) -> Ev
         result = event.add_result(split, ir_result["event_strength_of_field"],
                                   "https://members.iracing.com/membersite/member/EventResult.do?subsessionid=" +
                                   str(ir_result["subsession_id"]))
+        for car_class in ir_result["car_classes"]:
+            result.add_category(car_class["short_name"], car_class["strength_of_field"])
         if log:
             _ams_logger.info(f"SOF: {result.sof}")
         for ir_team_result in ir_race_results["results"]:
@@ -163,7 +165,7 @@ def fetch_and_report_drivers(event: Event, drivers: list, img_name_postfix: str 
                                  split,
                                  team.name,
                                  team.num_drivers,
-                                 team.category,
+                                 f"{team.category} ({result.strength_of_category(team.category)})",
                                  team.car,
                                  f"{team.finish_position_in_class}/{total_class_cars}",
                                  f"{team.finish_position}/{total_cars}",

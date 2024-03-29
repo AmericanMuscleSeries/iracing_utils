@@ -4,4 +4,4 @@ protobuf
 iracingdataapi
 trueskill
 gspread
-dataframe_image
+dataframe-image

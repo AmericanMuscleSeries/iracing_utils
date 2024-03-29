@@ -50,7 +50,11 @@ if __name__ == "__main__":
                 json.dump(e, fp, indent=2)
         return event
 
-    events = [load_event("Daytona 24"), load_event("Bathurst 12 Hour")]
+    events = [
+        # load_event("Daytona 24"),
+        # load_event("Bathurst 12 Hour"),
+        load_event("12 Hours of Sebring")
+    ]
 
     cfg = LeagueConfiguration(6810)
     lg = cfg.fetch_league(opts.username, opts.password)
