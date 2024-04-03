@@ -159,25 +159,26 @@ if __name__ == "__main__":
         season = cfg.get_season(6)
         season.active = True  # Use this to use current league assigned numbers for all cars instead of race numbers
         season.sort_by = SortBy.ForcedDrops
-        # This is for updating scores midweek on a number change
-        # If False, cars will use the last race number assigned to figure out their grouping
-        season.num_drops = 2
-        scoring = season.set_linear_decent_scoring(40)
+        scoring = season.set_linear_decent_scoring(40, hcp=False)
 
         # Let's give points for these as well, default is 0 points
         scoring.pole_position = 1
         scoring.laps_lead = 1
         scoring.fastest_lap = 0
 
-        # Set up our grouping rules per season
-        season.add_group_rule(Group.Pro, CarNumberRange(0, 99))
-        season.add_group_rule(Group.Am, CarNumberRange(100, 199))
-
         # Ignore practice races
         season.add_practice_sessions([1, 2])
 
-        season.add_google_sheet("1qdMBFll_eZxTF7G9DkaliJ6tm8sADqhHHFhKT8fIy1c",
-                                {Group.Pro: "Pro Drivers", Group.Am: "Am Drivers"})
+        if scoring.handicap:
+            season.add_group_rule(Group.Pro, CarNumberRange(0, 199))
+            season.add_google_sheet("1bjNJevXmU3godoJuPZjHnMHWdwdLmMimxcdOm38XsBk", {Group.Pro: "Drivers"})
+        else:
+            season.num_drops = 2
+            # Set up our grouping rules per season
+            season.add_group_rule(Group.Pro, CarNumberRange(0, 99))
+            season.add_group_rule(Group.Am, CarNumberRange(100, 199))
+            season.add_google_sheet("1qdMBFll_eZxTF7G9DkaliJ6tm8sADqhHHFhKT8fIy1c",
+                                    {Group.Pro: "Pro Drivers", Group.Am: "Am Drivers"})
 
         # Apply Penalties
         season.add_time_penalty(2, 310239, 10)

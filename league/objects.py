@@ -116,6 +116,7 @@ class Season:
             driver = Driver(cust_id)
             driver._earned_points = 0
             driver._drop_points = 0
+            driver._handicap_points = 0
             driver._clean_driver_points = 0
             driver._total_fastest_laps = 0
             driver._total_incidents = 0
@@ -151,6 +152,7 @@ class Driver:
                  "_group",  # Can change in season
                  "_earned_points",
                  "_drop_points",
+                 "_handicap_points",
                  "_clean_driver_points",
                  "_total_fastest_laps",
                  "_total_incidents",
@@ -169,6 +171,7 @@ class Driver:
         self._group = None
         self._earned_points = None
         self._drop_points = None
+        self._handicap_points = None
         self._clean_driver_points = None
         self._total_fastest_laps = None
         self._total_incidents = None
@@ -202,6 +205,9 @@ class Driver:
 
     @property
     def drop_points(self): return self._drop_points
+
+    @property
+    def handicap_points(self): return self._handicap_points
 
     @property
     def clean_driver_points(self): return self._clean_driver_points
@@ -334,6 +340,7 @@ class Result:
                  "_start_position",
                  "_finish_position",
                  "_points",
+                 "_handicap_points",
                  "_clean_driver_points",
                  "_interval",
                  "_incidents",
@@ -349,6 +356,7 @@ class Result:
         self._finish_position = None
         self._interval = None
         self._points = None
+        self._handicap_points = None
         self._clean_driver_points = None
         self._incidents = None
         self._laps_completed = None
@@ -376,6 +384,9 @@ class Result:
 
     @property
     def points(self): return self._points
+
+    @property
+    def handicap_points(self): return self._handicap_points
 
     @property
     def clean_driver_points(self): return self._clean_driver_points
@@ -586,6 +597,7 @@ def serialize_league_to_string(src: League, fmt: SerializationFormat) -> str:
             driver_data.CarNumber = driver.car_number
             driver_data.Group = driver.group.value
             driver_data.EarnedPoints = driver.earned_points
+            driver_data.HandicapPoints = driver.handicap_points
             driver_data.DropPoints = driver.drop_points
             driver_data.CleanDriverPoints = driver.clean_driver_points
             driver_data.TotalFastestLaps = driver.total_fastest_laps
@@ -620,6 +632,7 @@ def serialize_league_to_string(src: League, fmt: SerializationFormat) -> str:
                 results_data.FinishPosition = result.finish_position
                 results_data.Points = result.points
                 results_data.CleanDriverPoints = result.clean_driver_points
+                results_data.HandicapPoints = result.handicap_points
                 results_data.Interval = result.interval
                 results_data.Incidents = result.incidents
                 results_data.LapsCompleted = result.laps_completed
@@ -658,7 +671,8 @@ def serialize_league_data_from_bind(src: LeagueData, dst: League):
             driver._car_number = driver_data.CarNumber
             driver._earned_points = driver_data.EarnedPoints
             driver._drop_points = driver_data.DropPoints
-            driver._clean_driver_points = driver.CleanDriverPoints
+            driver._handicap_points = driver_data.HandicapPoints
+            driver._clean_driver_points = driver_data.CleanDriverPoints
             driver._total_fastest_laps = driver_data.TotalFastestLaps
             driver._total_incidents = driver_data.TotalIncidents
             driver._total_laps_complete = driver_data.TotalLapsComplete
@@ -687,6 +701,7 @@ def serialize_league_data_from_bind(src: LeagueData, dst: League):
                 result._start_position = result_data.StartPosition
                 result._finish_position = result_data.FinishPosition
                 result._points = result_data.Points
+                result._handicap_points = result_data.HandicapPoints
                 result._clean_driver_points = result_data.CleanDriverPoints
                 result._interval = result_data.Interval
                 result._incidents = result_data.Incidents

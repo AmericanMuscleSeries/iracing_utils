@@ -34,13 +34,17 @@ class GDrive:
         for group, sheet in sheets.items():
             self._result_sheets[group] = self._results_xls.worksheet(sheet)
 
-    def push_results(self, lg: League, season: int, groups: list, sort_by: SortBy) -> int:
+    def push_results(self, lg: League, season: int, groups: list, sort_by: SortBy, handicap: bool) -> int:
         count = 0 # Keeping track of sheet update calls, you only get 60/min with free projects
         # gsheets takes a list(list())
         season_values = list()
 
         dates = list()
         tracks = list()
+        # How many cells of data for each race are we pushing?
+        num_race_cells = 12
+        if handicap:
+            num_race_cells = 13
 
         season = lg.get_season(season)
         for group in groups:
@@ -72,7 +76,10 @@ class GDrive:
                 row.append(driver.name)
                 row.append(driver.car_number)
                 row.append(driver.earned_points)
-                row.append(driver.earned_points-driver.drop_points)
+                if handicap:
+                    row.append(driver.handicap_points)
+                else:
+                    row.append(driver.earned_points-driver.drop_points)
                 row.append(driver.clean_driver_points)
                 row.append(driver.total_incidents)
                 row.append(driver.total_pole_positions)
@@ -85,7 +92,7 @@ class GDrive:
                 for race_number in range(len(season.races)):
                     result = season.get_race(race_number+1).get_result(cust_id)
                     if result is None:
-                        for i in range(12):
+                        for i in range(num_race_cells):
                             row.append("")
                     else:
                         row.append(result.start_position)
@@ -94,6 +101,8 @@ class GDrive:
                         row.append("Y" if result.pole_position else "")
                         row.append("Y" if result.laps_lead > 0 else "")
                         row.append("Y" if result.fastest_lap else "")
+                        if handicap:
+                            row.append(result.handicap_points)  # HCP
                         row.append(result.incidents)
                         row.append(result.clean_driver_points)
                         row.append(result.laps_completed)

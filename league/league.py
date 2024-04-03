@@ -2,6 +2,7 @@
 # See accompanying NOTICE file for details.
 
 import json
+import math
 import logging
 import trueskill
 from pathlib import Path
@@ -21,13 +22,18 @@ _ams_logger = logging.getLogger('ams')
 class ScoringSystem:
     __slots__ = ["pole_position",
                  "fastest_lap",
-                 "laps_lead"
+                 "laps_lead",
+                 "_handicap"
                  ]
 
     def __init__(self):
         self.pole_position = 0
         self.fastest_lap = 0
         self.laps_lead = 0
+        self._handicap = False
+
+    @property
+    def handicap(self): return self._handicap
 
 
 class LinearDecentScoring(ScoringSystem):
@@ -116,14 +122,16 @@ class SeasonConfiguration:
         self.time_penalties = list()
         self.google_sheet = None
 
-    def set_linear_decent_scoring(self, top_score: int):
+    def set_linear_decent_scoring(self, top_score: int, hcp: bool=False):
         self.scoring_system = LinearDecentScoring()
         self.scoring_system.top_score = top_score
+        self.scoring_system._handicap = hcp
         return self.scoring_system
 
-    def set_assignment_scoring(self, assignments: dict):
+    def set_assignment_scoring(self, assignments: dict, hcp: bool=False):
         self.scoring_system = AssignmentScoring()
         self.scoring_system.assignments = assignments
+        self.scoring_system._handicap = hcp
         return self.scoring_system
 
     def add_non_driver(self, cust_id: int):
@@ -144,7 +152,7 @@ class SeasonConfiguration:
     def add_time_penalty(self, race: int, cust_id: int, seconds: int):
         self.time_penalties.append(TimePenalty(race, cust_id, seconds))
 
-    def add_google_sheet(self, key: str, group_tabs: dict):
+    def add_google_sheet(self, key: str, group_tabs: dict = None):
         self.google_sheet = GoogleSheet(key, group_tabs)
 
     def get_group(self, car_number: int) -> Group:
@@ -202,7 +210,8 @@ class LeagueConfiguration:
             _ams_logger.info("Pushing " + self._name + " season " + str(season_num) + " results to sheets")
             # TODO These two methods should probably be one
             gdrive.connect_to_results(season.google_sheet.key, season.google_sheet.group_tabs)
-            cnt = gdrive.push_results(lg, season_num, list(season.google_sheet.group_tabs.keys()), season.sort_by)
+            cnt = gdrive.push_results(lg, season_num, list(season.google_sheet.group_tabs.keys()), season.sort_by,
+                                      season.scoring_system.handicap)
             _ams_logger.info("Executed " + str(cnt) + " update calls")
 
     def fetch_league(self, username: str, password: str):
@@ -294,8 +303,6 @@ class LeagueConfiguration:
                                 if lg_member["cust_id"] == cust_id:
                                     driver_car_number = int(lg_member["car_number"])
                                     driver.set_car_number(driver_car_number, season_cfg.get_group(driver_car_number))
-                    if "Sudenga" in driver.name:
-                        print("Here")
                     if driver.car_number is None:
                         driver_car_number = int(ir_car_result["livery"]["car_number"])
                         driver.set_car_number(driver_car_number, season_cfg.get_group(driver_car_number))
@@ -358,6 +365,7 @@ class LeagueConfiguration:
                     for rr in race.grid.values():
                         rr._points = max_points - rr._finish_position+1
                         if rr._points < 0:
+                            rr._points = 0
                             rr._points = 0
                         if rr._laps_lead > 0:
                             rr._points += season_cfg.scoring_system.laps_lead
@@ -428,13 +436,27 @@ class LeagueConfiguration:
             for cust_id, driver in season.drivers.items():
                 season.get_driver(cust_id)
                 points.clear()
+                num_races = 0
+                hcp_points = []
                 for race in season.races.values():
                     result = race.get_result(cust_id)
                     if result is None:  # Not in this race
                         points.append(0)
+                        hcp_points.append(0)
                     else:
+                        result._handicap_points = 0
                         points.append(result.points)
+                        # Apply a handicap if requested
+                        if season_cfg.scoring_system.handicap:
+                            num_races += 1
+                            # N = average points per race
+                            # points added = 0.9 * (30 - N)
+                            n = (sum(points) + sum(hcp_points)) / num_races
+                            hcp = math.floor(0.90 * ((max_points * 0.75) - n))
+                            result._handicap_points = hcp if hcp > 0 else 0
+                            hcp_points.append(result._handicap_points)
                 driver._earned_points = sum(points)
+                driver._handicap_points = sum(points) + sum(hcp_points)
                 driver._drop_points = 0
                 if 0 < season_cfg.num_drops < len(points):
                     driver._drop_points = sum(sorted(points)[:season_cfg.num_drops])
@@ -467,6 +489,7 @@ def serialize_league_configuration_to_bind(src: LeagueConfiguration, dst: League
 
         if isinstance(season.scoring_system, LinearDecentScoring):
             season_data.ScoringSystem.LinearDecent.TopScore = season.scoring_system.top_score
+            season_data.ScoringSystem.LinearDecent.Handicap = season.scoring_system.handicap
             season_data.ScoringSystem.LinearDecent.Base.PolePosition = season.scoring_system.pole_position
             season_data.ScoringSystem.LinearDecent.Base.FastestLap = season.scoring_system.fastest_lap
             season_data.ScoringSystem.LinearDecent.Base.LapsLead = season.scoring_system.laps_lead
@@ -531,7 +554,8 @@ def serialize_league_configuration_from_bind(src: LeagueConfigurationData, dst: 
         system = season_data.ScoringSystem.WhichOneof("System")
         # data = getattr(season_data.ScoringSystem, season_data.ScoringSystem.WhichOneof("System"))
         if system == "LinearDecent":
-            scoring = season.set_linear_decent_scoring(season_data.ScoringSystem.LinearDecent.TopScore)
+            scoring = season.set_linear_decent_scoring(season_data.ScoringSystem.LinearDecent.TopScore,
+                                                       season_data.ScoringSystem.LinearDecent.Handicap)
             scoring.pole_position = season_data.ScoringSystem.LinearDecent.Base.PolePosition
             scoring.laps_lead = season_data.ScoringSystem.LinearDecent.Base.LapsLead
             scoring.fastest_lap = season_data.ScoringSystem.LinearDecent.Base.FastestLap

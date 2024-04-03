@@ -49,10 +49,10 @@ message LinearDecentScoringData
 {
   ScoringSystemData Base     = 1;
   int32             TopScore = 2;
+  bool              Handicap = 3;
 }
 
-// Race winner will get TopScore, each subsequent racer will get 1 less point
-// Drivers outside of the TopScore will get zero points (not negative points)
+// Specify the points for each finishing position
 message AssignmentScoringData
 {
   ScoringSystemData Base          = 1;
@@ -128,15 +128,16 @@ message DriverData
   eGroup    Group              = 5;
   int32     EarnedPoints       = 6;
   int32     DropPoints         = 7;
-  int32     CleanDriverPoints  = 8;
-  int32     TotalFastestLaps   = 9;
-  int32     TotalIncidents     = 10;
-  int32     TotalLapsComplete  = 11;
-  int32     TotalLapsLead      = 12;
-  int32     TotalPolePositions = 13;
-  int32     TotalRaces         = 14;
-  float     Mu                 = 15;// Trueskill
-  float     Sigma              = 16; // Trueskill
+  int32     HandicapPoints     = 8;
+  int32     CleanDriverPoints  = 9;
+  int32     TotalFastestLaps   = 10;
+  int32     TotalIncidents     = 11;
+  int32     TotalLapsComplete  = 12;
+  int32     TotalLapsLead      = 13;
+  int32     TotalPolePositions = 14;
+  int32     TotalRaces         = 15;
+  float     Mu                 = 16;// Trueskill
+  float     Sigma              = 17;// Trueskill
 }
 
 message GroupStatsData // Can't make a map with an enum as key :-(
@@ -164,13 +165,14 @@ message ResultData
   int32  StartPosition     = 3;
   int32  FinishPosition    = 4;
   int32  Points            = 5;
-  int32  CleanDriverPoints = 6;
-  float  Interval          = 7;
-  int32  Incidents         = 8;
-  int32  LapsCompleted     = 9;
-  int32  LapsLead          = 10;
-  float  Mu                = 11; // Trueskill
-  float  Sigma             = 12; // Trueskill
+  int32  HandicapPoints    = 6;
+  int32  CleanDriverPoints = 7;
+  float  Interval          = 8;
+  int32  Incidents         = 9;
+  int32  LapsCompleted     = 10;
+  int32  LapsLead          = 11;
+  float  Mu                = 12; // Trueskill
+  float  Sigma             = 13; // Trueskill
 }
 
 message EventData
