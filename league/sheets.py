@@ -35,7 +35,7 @@ class GDrive:
             self._result_sheets[group] = self._results_xls.worksheet(sheet)
 
     def push_results(self, lg: League, season: int, groups: list, sort_by: SortBy, handicap: bool) -> int:
-        count = 0 # Keeping track of sheet update calls, you only get 60/min with free projects
+        count = 0  # Keeping track of sheet update calls, you only get 60/min with free projects
         # gsheets takes a list(list())
         season_values = list()
 
@@ -82,10 +82,14 @@ class GDrive:
                     row.append(driver.earned_points-driver.drop_points)
                 row.append(driver.clean_driver_points)
                 row.append(driver.total_incidents)
-                row.append(driver.total_pole_positions)
-                row.append(driver.total_laps_complete)
-                row.append(driver.total_laps_lead)
-                row.append(driver.total_fastest_laps)
+                row.append(driver.total_wins)
+                row.append(driver.total_races)
+                row.append("{:.1f}".format(driver.average_finish))
+                row.append(driver.race_finish_points)
+                row.append(driver.pole_position_points)
+                row.append(driver.laps_lead_points)
+                row.append(driver.most_laps_lead_points)
+                row.append(driver.fastest_lap_points)
                 row.append("{:.2f}".format(driver.mu))
                 row.append("{:.2f}".format(driver.sigma))
 

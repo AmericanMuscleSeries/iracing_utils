@@ -23,6 +23,7 @@ class ScoringSystem:
     __slots__ = ["pole_position",
                  "fastest_lap",
                  "laps_lead",
+                 "most_laps_lead",
                  "_handicap"
                  ]
 
@@ -30,6 +31,7 @@ class ScoringSystem:
         self.pole_position = 0
         self.fastest_lap = 0
         self.laps_lead = 0
+        self.most_laps_lead = 0
         self._handicap = False
 
     @property
@@ -315,6 +317,7 @@ class LeagueConfiguration:
                     result._incidents = ir_car_result["incidents"]
                     result._laps_completed = ir_car_result["laps_complete"]
                     result._laps_lead = ir_car_result["laps_lead"]
+                    result._fastest_lap_time = ir_car_result["best_lap_time"]
                     result._clean_driver_points = 0
                     if result._laps_completed >= ir_total_laps*0.5:
                         if result._incidents == 0:
@@ -327,7 +330,9 @@ class LeagueConfiguration:
                     # Increment driver counters
                     driver._total_races += 1
                     driver._total_incidents += result._incidents
-                    driver._total_laps_lead += result._laps_lead
+                    if result._laps_lead > 0:
+                        driver._total_laps_lead += 1
+                        driver._laps_lead_points += season_cfg.scoring_system.laps_lead
                     driver._total_laps_complete += result._laps_completed
                     driver._clean_driver_points += result._clean_driver_points
 
@@ -367,6 +372,7 @@ class LeagueConfiguration:
                         if rr._points < 0:
                             rr._points = 0
                             rr._points = 0
+                        season.get_driver(rr.cust_id)._race_finish_points += rr._points
                         if rr._laps_lead > 0:
                             rr._points += season_cfg.scoring_system.laps_lead
                 elif isinstance(season_cfg.scoring_system, AssignmentScoring):
@@ -375,6 +381,7 @@ class LeagueConfiguration:
                         if rr._finish_position in season_cfg.scoring_system.assignments:
                             pos_pts = season_cfg.scoring_system.assignments[rr._finish_position]
                         rr._points = pos_pts
+                        season.get_driver(rr.cust_id)._race_finish_points += rr._points
                         if rr._laps_lead > 0:
                             rr._points += season_cfg.scoring_system.laps_lead
                 else:
@@ -415,21 +422,36 @@ class LeagueConfiguration:
                     race_stats = race.get_stats(driver.group)
                     race_stats._num_drivers += 1
                     race_stats.check_if_pole_position(result.cust_id, result.start_position)
-                    race_stats.check_if_fastest_lap(result.cust_id, result.fastest_lap)
+                    race_stats.check_if_fastest_lap(result.cust_id, result.fastest_lap_time)
+                    race_stats.check_if_winner(result.cust_id, result.finish_position)
+                    race_stats.check_if_most_laps_lead(result.cust_id, result.laps_lead)
 
                 # Now push those stats back into the results and drivers
                 for stat in race.stats.values():
-                    rr = race.get_result(stat.fastest_lap_driver)
-                    rr._fastest_lap = True
-                    dvr = season.get_driver(stat.fastest_lap_driver)
-                    dvr._total_fastest_laps += 1
-                    if rr._fastest_lap:
-                        rr._points += season_cfg.scoring_system.fastest_lap
+                    dvr = season.get_driver(stat.winning_driver)
+                    dvr._total_wins += 1
+
                     rr = race.get_result(stat.pole_position_driver)
                     rr._pole_position = True
-                    if rr._pole_position:
-                        rr._points += season_cfg.scoring_system.pole_position
+                    rr._points += season_cfg.scoring_system.pole_position
+                    dvr = season.get_driver(stat.pole_position_driver)
                     dvr._total_pole_positions += 1
+                    dvr._pole_position_points += season_cfg.scoring_system.pole_position
+
+                    rr = race.get_result(stat.fastest_lap_driver)
+                    rr._fastest_lap = True
+                    rr._points += season_cfg.scoring_system.fastest_lap
+                    dvr = season.get_driver(stat.fastest_lap_driver)
+                    dvr._total_fastest_laps += 1
+                    dvr._fastest_lap_points += season_cfg.scoring_system.fastest_lap
+
+                    if stat.most_laps_lead_driver is not None:
+                        rr = race.get_result(stat.most_laps_lead_driver)
+                        rr._most_laps_lead = True
+                        rr._points += season_cfg.scoring_system.most_laps_lead
+                        dvr = season.get_driver(stat.most_laps_lead_driver)
+                        dvr._total_most_laps_lead += 1
+                        dvr._most_laps_lead_points += season_cfg.scoring_system.most_laps_lead
 
             # Score each driver
             points = list()
@@ -438,12 +460,14 @@ class LeagueConfiguration:
                 points.clear()
                 num_races = 0
                 hcp_points = []
+                finishing_positions = []
                 for race in season.races.values():
                     result = race.get_result(cust_id)
                     if result is None:  # Not in this race
                         points.append(0)
                         hcp_points.append(0)
                     else:
+                        finishing_positions.append(result.finish_position)
                         result._handicap_points = 0
                         points.append(result.points)
                         # Apply a handicap if requested
@@ -460,6 +484,7 @@ class LeagueConfiguration:
                 driver._drop_points = 0
                 if 0 < season_cfg.num_drops < len(points):
                     driver._drop_points = sum(sorted(points)[:season_cfg.num_drops])
+                driver._average_finish = sum(finishing_positions) / len(finishing_positions)
 
         # End of looping over every season
 

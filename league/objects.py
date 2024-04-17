@@ -113,18 +113,7 @@ class Season:
 
     def add_driver(self, cust_id: int):
         if cust_id not in self.drivers:
-            driver = Driver(cust_id)
-            driver._earned_points = 0
-            driver._drop_points = 0
-            driver._handicap_points = 0
-            driver._clean_driver_points = 0
-            driver._total_fastest_laps = 0
-            driver._total_incidents = 0
-            driver._total_laps_complete = 0
-            driver._total_laps_lead = 0
-            driver._total_pole_positions = 0
-            driver._total_races = 0
-            self.drivers[cust_id] = driver
+            self.drivers[cust_id] = Driver(cust_id)
         return self.drivers[cust_id]
 
     def get_driver(self, cust_id: int):
@@ -150,16 +139,30 @@ class Driver:
                  "_new_irating",
                  "_car_number",  # Can change in season
                  "_group",  # Can change in season
+                 "_total_races",
+                 # Points
                  "_earned_points",
                  "_drop_points",
                  "_handicap_points",
                  "_clean_driver_points",
-                 "_total_fastest_laps",
+                 # Pole Position
+                 "_total_pole_positions",
+                 "_pole_position_points",
+                 # Finishings
+                 "_total_wins",
+                 "_average_finish",
+                 "_race_finish_points",
                  "_total_incidents",
                  "_total_laps_complete",
+                 # Laps Lead
                  "_total_laps_lead",
-                 "_total_pole_positions",
-                 "_total_races",
+                 "_laps_lead_points",
+                 "_total_most_laps_lead",
+                 "_most_laps_lead_points",
+                 # Fast Laps
+                 "_total_fastest_laps",
+                 "_fastest_lap_points",
+                 # Trueskill
                  "_mu", "_sigma"]
 
     def __init__(self, cust_id: int, name: str = None):
@@ -169,16 +172,30 @@ class Driver:
         self._new_irating = 0
         self._car_number = None
         self._group = None
-        self._earned_points = None
-        self._drop_points = None
-        self._handicap_points = None
-        self._clean_driver_points = None
-        self._total_fastest_laps = None
-        self._total_incidents = None
-        self._total_laps_complete = None
-        self._total_laps_lead = None
-        self._total_pole_positions = None
-        self._total_races = None
+        self._total_races = 0
+        # Points
+        self._earned_points = 0
+        self._drop_points = 0
+        self._handicap_points = 0
+        self._clean_driver_points = 0
+        # Pole Position
+        self._total_pole_positions = 0
+        self._pole_position_points = 0
+        # Finishings
+        self._total_wins = 0
+        self._average_finish = 0
+        self._race_finish_points = 0
+        self._total_incidents = 0
+        self._total_laps_complete = 0
+        # Laps Lead
+        self._total_laps_lead = 0
+        self._laps_lead_points = 0
+        self._total_most_laps_lead = 0
+        self._most_laps_lead_points = 0
+        # Fast Laps
+        self._total_fastest_laps = 0
+        self._fastest_lap_points = 0
+        # Trueskill
         self._mu = 25
         self._sigma = 0.83333
 
@@ -201,6 +218,9 @@ class Driver:
     def car_number(self): return self._car_number
 
     @property
+    def total_races(self): return self._total_races
+
+    @property
     def earned_points(self): return self._earned_points
 
     @property
@@ -213,7 +233,19 @@ class Driver:
     def clean_driver_points(self): return self._clean_driver_points
 
     @property
-    def total_fastest_laps(self): return self._total_fastest_laps
+    def total_pole_positions(self): return self._total_pole_positions
+
+    @property
+    def pole_position_points(self): return self._pole_position_points
+
+    @property
+    def total_wins(self): return self._total_wins
+
+    @property
+    def average_finish(self): return self._average_finish
+
+    @property
+    def race_finish_points(self): return self._race_finish_points
 
     @property
     def total_incidents(self): return self._total_incidents
@@ -225,10 +257,19 @@ class Driver:
     def total_laps_lead(self): return self._total_laps_lead
 
     @property
-    def total_pole_positions(self): return self._total_pole_positions
+    def laps_lead_points(self): return self._laps_lead_points
 
     @property
-    def total_races(self): return self._total_races
+    def total_most_laps_lead(self): return self._total_most_laps_lead
+
+    @property
+    def most_laps_lead_points(self): return self._most_laps_lead_points
+
+    @property
+    def total_fastest_laps(self): return self._total_fastest_laps
+
+    @property
+    def fastest_lap_points(self): return self._fastest_lap_points
 
     @property
     def mu(self): return self._mu
@@ -252,19 +293,29 @@ class GroupStats:
                  "_num_drivers",
                  "_pole_position_driver",
                  "_pole_position",
+                 "_winning_position",
+                 "_winning_driver",
                  "_fastest_lap_driver",
-                 "_fastest_lap_time"]
+                 "_fastest_lap_time",
+                 "_most_laps_lead_driver",
+                 "_most_laps_lead",
+                 "laps_lead_drivers"]
 
     def __init__(self, group: Group):
         self._group = group
         self._num_drivers = 0
         self._pole_position_driver = None
         self._pole_position = 100
+        self._winning_position = 100
+        self._winning_driver = None
         self._fastest_lap_driver = None
-        self._fastest_lap_time = 100
+        self._fastest_lap_time = 10000000
+        self._most_laps_lead_driver = None
+        self._most_laps_lead = 0
+        self.laps_lead_drivers = []
 
     def check_if_fastest_lap(self, cust_id: int, time_s: float):
-        if time_s < self._fastest_lap_time:
+        if 0 < time_s < self._fastest_lap_time:
             self._fastest_lap_time = time_s
             self._fastest_lap_driver = cust_id
 
@@ -273,11 +324,33 @@ class GroupStats:
             self._pole_position = position
             self._pole_position_driver = cust_id
 
+    def check_if_winner(self, cust_id: int, position: int):
+        if position < self._winning_position:
+            self._winning_position = position
+            self._winning_driver = cust_id
+
+    def check_if_most_laps_lead(self, cust_id: int, laps_lead: int):
+        if laps_lead > self._most_laps_lead:
+            self._most_laps_lead = laps_lead
+            self._most_laps_lead_driver = cust_id
+
     @property
     def group(self): return self._group
 
     @property
     def num_drivers(self): return self._num_drivers
+
+    @property
+    def pole_position_driver(self): return self._pole_position_driver
+
+    @property
+    def pole_position(self): return self._pole_position
+
+    @property
+    def winning_position(self): return self._winning_position
+
+    @property
+    def winning_driver(self): return self._winning_driver
 
     @property
     def fastest_lap_driver(self): return self._fastest_lap_driver
@@ -286,10 +359,10 @@ class GroupStats:
     def fastest_lap_time(self): return self._fastest_lap_time
 
     @property
-    def pole_position_driver(self): return self._pole_position_driver
+    def most_laps_lead_driver(self): return self._most_laps_lead_driver
 
     @property
-    def pole_position(self): return self._pole_position
+    def most_laps_lead(self): return self._most_laps_lead
 
 
 class Race:
@@ -346,6 +419,8 @@ class Result:
                  "_incidents",
                  "_laps_completed",
                  "_laps_lead",
+                 "_most_laps_lead",
+                 "_fastest_lap_time",
                  "_mu", "_sigma"]
 
     def __init__(self, cust_id: int):
@@ -361,6 +436,8 @@ class Result:
         self._incidents = None
         self._laps_completed = None
         self._laps_lead = None
+        self._most_laps_lead = False
+        self._fastest_lap_time = None
         self._mu = 0
         self._sigma = 0
 
@@ -399,6 +476,12 @@ class Result:
 
     @property
     def laps_lead(self): return self._laps_lead
+
+    @property
+    def most_laps_lead(self): return self._most_laps_lead
+
+    @property
+    def fastest_lap_time(self): return self._fastest_lap_time
 
     @property
     def mu(self): return self._mu
@@ -596,16 +679,31 @@ def serialize_league_to_string(src: League, fmt: SerializationFormat) -> str:
             driver_data.NewRating = driver.new_irating
             driver_data.CarNumber = driver.car_number
             driver_data.Group = driver.group.value
+            driver_data.TotalRaces = driver.total_races
+            # Points
             driver_data.EarnedPoints = driver.earned_points
             driver_data.HandicapPoints = driver.handicap_points
             driver_data.DropPoints = driver.drop_points
             driver_data.CleanDriverPoints = driver.clean_driver_points
+            # Pole Position
+            driver_data.TotalPolePositions = driver.total_pole_positions
+            driver_data.PolePositionPoints = driver.pole_position_points
+            # Finishings
+            driver_data.TotalWins = driver.total_wins
+            driver_data.AverageFinish = driver.average_finish
             driver_data.TotalFastestLaps = driver.total_fastest_laps
+            driver_data.RaceFinishPoints = driver.race_finish_points
             driver_data.TotalIncidents = driver.total_incidents
             driver_data.TotalLapsComplete = driver.total_laps_complete
+            # Laps Lead
             driver_data.TotalLapsLead = driver.total_laps_lead
-            driver_data.TotalPolePositions = driver.total_pole_positions
-            driver_data.TotalRaces = driver.total_races
+            driver_data.LapsLeadPoints = driver.laps_lead_points
+            driver_data.TotalMostLapsLead = driver.total_most_laps_lead
+            driver_data.MostLapsLeadPoints = driver.most_laps_lead_points
+            # Fast Laps
+            driver_data.TotalFastestLaps = driver.total_fastest_laps
+            driver_data.FastestLapPoints = driver.fastest_lap_points
+            # Trueskill
             driver_data.Mu = driver.mu
             driver_data.Sigma = driver.sigma
 
@@ -620,8 +718,15 @@ def serialize_league_to_string(src: League, fmt: SerializationFormat) -> str:
                 stats_data.Count = stats.num_drivers
                 stats_data.PolePositionDriver = stats.pole_position_driver
                 stats_data.PolePosition = stats.pole_position
+                stats_data.WinningPosition = stats.winning_position
+                stats_data.WinningDriver = stats.winning_driver
                 stats_data.FastestLapDriver = stats.fastest_lap_driver
                 stats_data.FastestLapTime = stats.fastest_lap_time
+                if stats.most_laps_lead_driver is not None:
+                    stats_data.MostLapsLeadDriver = stats.most_laps_lead_driver
+                    stats_data.MostLapsLead = stats.most_laps_lead
+                    for cust_id in stats.laps_lead_drivers:
+                        stats_data.NumLapsLeadDrivers.append(cust_id)
                 race_data.GroupStats.append(stats_data)
 
             for cust_id, result in race.grid.items():
@@ -637,6 +742,8 @@ def serialize_league_to_string(src: League, fmt: SerializationFormat) -> str:
                 results_data.Incidents = result.incidents
                 results_data.LapsCompleted = result.laps_completed
                 results_data.LapsLead = result.laps_lead
+                results_data.MostLapsLead = result.most_laps_lead
+                results_data.FastestLapTime = result.fastest_lap_time
                 results_data.Mu = result.mu
                 results_data.Sigma = result.sigma
 
@@ -669,16 +776,30 @@ def serialize_league_data_from_bind(src: LeagueData, dst: League):
             driver._new_irating = driver.NewRating
             driver._group = Group(driver_data.Group)
             driver._car_number = driver_data.CarNumber
+            driver._total_races = driver_data.TotalRaces
+            # Points
             driver._earned_points = driver_data.EarnedPoints
             driver._drop_points = driver_data.DropPoints
             driver._handicap_points = driver_data.HandicapPoints
             driver._clean_driver_points = driver_data.CleanDriverPoints
-            driver._total_fastest_laps = driver_data.TotalFastestLaps
+            # Pole Position
+            driver._total_pole_positions = driver_data.TotalPolePositions
+            driver._pole_position_points = driver_data.PolePositionPoints
+            # Finishings
+            driver._total_wins = driver_data.TotalWins
+            driver._average_finish = driver_data.AverageFinish
+            driver._race_finish_points = driver_data.RaceFinishPoints
             driver._total_incidents = driver_data.TotalIncidents
             driver._total_laps_complete = driver_data.TotalLapsComplete
+            # Laps Lead
             driver._total_laps_lead = driver_data.TotalLapsLead
-            driver._total_pole_positions = driver_data.TotalPolePositions
-            driver._total_races = driver_data.TotalRaces
+            driver._laps_lead_points = driver_data.LapsLeadPoints
+            driver._total_most_laps_lead = driver_data.TotalMostLapsLead
+            driver._most_laps_lead_points = driver_data.MostLapsLeadPoints
+            # Fast Laps
+            driver._total_fastest_laps = driver_data.TotalFastestLaps
+            driver._fastest_lap_points = driver_data.FastestLapPoints
+            # Trueskill
             driver._mu = driver_data.Mu
             driver._sigma = driver_data.Sigma
 
@@ -688,10 +809,16 @@ def serialize_league_data_from_bind(src: LeagueData, dst: League):
             for group_stats_data in race_data.GroupStats:
                 stats = race.get_stats(group_stats_data.Group)
                 stats._num_drivers = group_stats_data.Count
-                stats._pole_position_driver = group_stats_data.Count
-                stats._pole_position = group_stats_data.Count
-                stats._fastest_lap_driver = group_stats_data.Count
-                stats._fastest_lap_time = group_stats_data.Count
+                stats._pole_position_driver = group_stats_data.PolePositionDriver
+                stats._pole_position = group_stats_data.PolePosition
+                stats._winning_position = group_stats_data.WinningPosition
+                stats._winning_driver = group_stats_data.WinningDriver
+                stats._fastest_lap_driver = group_stats_data.FastestLapDriver
+                stats._fastest_lap_time = group_stats_data.FastestLapTime
+                stats._most_laps_lead_driver = group_stats_data.MostLapsLeadDriver
+                stats._most_laps_lead = group_stats_data.MostLapsLead
+                for cust_id in group_stats_data.LapsLeadDrivers:
+                    stats.laps_lead_drivers.append(cust_id)
 
             for cust_id, result_data in race_data.Grid.items():
                 result = race.add_result(cust_id)
@@ -707,6 +834,8 @@ def serialize_league_data_from_bind(src: LeagueData, dst: League):
                 result._incidents = result_data.Incidents
                 result._laps_completed = result_data.LapsCompleted
                 result._laps_lead = result_data.LapsLead
+                result._most_laps_lead = result_data.MostLapsLead
+                result._fastest_lap_time = result_data.FastestLapTime
                 result._mu = result_data.Mu
                 result._sigma = result_data.Sigma
 

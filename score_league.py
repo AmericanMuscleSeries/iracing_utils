@@ -80,6 +80,7 @@ if __name__ == "__main__":
         scoring.pole_position = 1
         scoring.laps_lead = 1
         scoring.fastest_lap = 0
+        scoring.most_laps_lead = 0
         season.add_group_rule(Group.Unknown, CarNumberRange(0, 999))
         season.add_google_sheet("1-u35u7rVazBkJOwpk1MGeafRksC0jc-zkJ2PamU1p1o",
                                 {Group.Unknown: "Drivers"})
@@ -91,6 +92,7 @@ if __name__ == "__main__":
         scoring.pole_position = 1
         scoring.laps_lead = 1
         scoring.fastest_lap = 0
+        scoring.most_laps_lead = 0
         season.add_group_rule(Group.Unknown, CarNumberRange(0, 999))
         season.add_google_sheet("1Rh7X5lLh2C68dG-NjyFbgjn9shsrartGrR0PAyDol2o",
                                 {Group.Unknown: "Drivers"})
@@ -102,6 +104,7 @@ if __name__ == "__main__":
         scoring.pole_position = 1
         scoring.laps_lead = 1
         scoring.fastest_lap = 0
+        scoring.most_laps_lead = 0
         season.add_group_rule(Group.Unknown, CarNumberRange(0, 999))
         season.add_google_sheet("1Smo-G7BlUEaFxudOn6FZ83mrSzu3u2eFFwH1dOyYBtY",
                                 {Group.Unknown: "Drivers"})
@@ -113,6 +116,7 @@ if __name__ == "__main__":
         scoring.pole_position = 1
         scoring.laps_lead = 1
         scoring.fastest_lap = 0
+        scoring.most_laps_lead = 0
         season.add_group_rule(Group.Unknown, CarNumberRange(0, 999))
         season.add_google_sheet("1IJOA3c5k6r9IUq0tqgDJPQxaSwZ3xW4y-gknGRD8QjE",
                                 {Group.Unknown: "Drivers"})
@@ -130,6 +134,7 @@ if __name__ == "__main__":
         scoring.pole_position = 1
         scoring.laps_lead = 1
         scoring.fastest_lap = 0
+        scoring.most_laps_lead = 0
 
         # Add non drivers like race control and media personalities
         season.add_non_driver(295683)
@@ -159,31 +164,48 @@ if __name__ == "__main__":
         season = cfg.get_season(6)
         season.active = True  # Use this to use current league assigned numbers for all cars instead of race numbers
         season.sort_by = SortBy.ForcedDrops
-        scoring = season.set_linear_decent_scoring(40, hcp=False)
+        if True:
+            # Official
+            season.num_drops = 2
+            sheet = "1qdMBFll_eZxTF7G9DkaliJ6tm8sADqhHHFhKT8fIy1c"
+            scoring = season.set_linear_decent_scoring(40, hcp=False)
+        else:
+            # IndyCar Style
+            season.num_drops = 2
+            sheet = "1mawS71Na0yUpAoXT1Oid-skL1GIzHkxUTYURTodCu5o"
+            scoring = season.set_assignment_scoring({1: 50, 2: 40, 3: 35, 4: 32, 5: 30,
+                                                     6: 28, 7: 26, 8: 24, 9: 22, 10: 20,
+                                                     11: 19, 12: 18, 13: 17, 14: 16, 15: 15,
+                                                     16: 14, 17: 13, 18: 12, 19: 11, 20: 10,
+                                                     21: 9, 22: 8, 23: 7, 24: 6, 25: 5,
+                                                     26: 5, 27: 5, 28: 5, 29: 5, 30: 5,
+                                                     31: 5, 32: 5, 33: 5})
+
 
         # Let's give points for these as well, default is 0 points
         scoring.pole_position = 1
         scoring.laps_lead = 1
         scoring.fastest_lap = 0
+        scoring.most_laps_lead = 0
 
         # Ignore practice races
         season.add_practice_sessions([1, 2])
 
         if scoring.handicap:
+            season.num_drops = 0
             season.add_group_rule(Group.Pro, CarNumberRange(0, 199))
             season.add_google_sheet("1bjNJevXmU3godoJuPZjHnMHWdwdLmMimxcdOm38XsBk", {Group.Pro: "Drivers"})
         else:
-            season.num_drops = 2
             # Set up our grouping rules per season
             season.add_group_rule(Group.Pro, CarNumberRange(0, 99))
             season.add_group_rule(Group.Am, CarNumberRange(100, 199))
-            season.add_google_sheet("1qdMBFll_eZxTF7G9DkaliJ6tm8sADqhHHFhKT8fIy1c",
-                                    {Group.Pro: "Pro Drivers", Group.Am: "Am Drivers"})
+            season.add_google_sheet(sheet, {Group.Pro: "Pro Drivers", Group.Am: "Am Drivers"})
 
         # Apply Penalties
         season.add_time_penalty(2, 310239, 10)
         season.add_time_penalty(6, 189468, 10)
         season.add_time_penalty(7, 85279, 5)
+        season.add_time_penalty(10, 71668, 5)
 
         # Save our league configuration to a json file.
         # Convert the LeagueConfiguration class to a python dict

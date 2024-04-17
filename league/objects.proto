@@ -31,9 +31,9 @@ message GroupRulesData
 
 message TimePenaltyData
 {
-  int32 Race   = 1;
-  int32 Driver     = 2;
-  int32 Seconds    = 3;
+  int32 Race    = 1;
+  int32 Driver  = 2;
+  int32 Seconds = 3;
 }
 
 message ScoringSystemData
@@ -41,6 +41,7 @@ message ScoringSystemData
   int32  PolePosition = 1;
   int32  FastestLap   = 2;
   int32  LapsLead     = 3;
+  int32  MostLapsLead = 4;
 }
 
 // Race winner will get TopScore, each subsequent racer will get 1 less point
@@ -126,28 +127,47 @@ message DriverData
   int32     NewRating          = 3;
   int32     CarNumber          = 4;
   eGroup    Group              = 5;
-  int32     EarnedPoints       = 6;
-  int32     DropPoints         = 7;
-  int32     HandicapPoints     = 8;
-  int32     CleanDriverPoints  = 9;
-  int32     TotalFastestLaps   = 10;
-  int32     TotalIncidents     = 11;
-  int32     TotalLapsComplete  = 12;
-  int32     TotalLapsLead      = 13;
-  int32     TotalPolePositions = 14;
-  int32     TotalRaces         = 15;
-  float     Mu                 = 16;// Trueskill
-  float     Sigma              = 17;// Trueskill
+  int32     TotalRaces         = 6;
+  // Points
+  int32     EarnedPoints       = 7;
+  int32     DropPoints         = 8;
+  int32     HandicapPoints     = 9;
+  int32     CleanDriverPoints  = 10;
+  // Pole Position
+  int32     TotalPolePositions = 11;
+  int32     PolePositionPoints = 12;
+  // Finishings
+  int32     TotalWins          = 13;
+  float     AverageFinish      = 14;
+  int32     RaceFinishPoints   = 15;
+  int32     TotalIncidents     = 16;
+  int32     TotalLapsComplete  = 17;
+  // Laps Lead
+  int32     TotalLapsLead      = 18;
+  int32     LapsLeadPoints     = 19;
+  int32     TotalMostLapsLead  = 20;
+  int32     MostLapsLeadPoints = 21;
+  // Fast Laps
+  int32     TotalFastestLaps   = 22;
+  int32     FastestLapPoints   = 23;
+  // Trueskill
+  float     Mu                 = 24;
+  float     Sigma              = 25;
 }
 
 message GroupStatsData // Can't make a map with an enum as key :-(
 {
-  eGroup Group              = 1;
-  int32  Count              = 2;
-  int32  PolePositionDriver = 3;
-  int32  PolePosition       = 4;
-  int32  FastestLapDriver   = 5;
-  float  FastestLapTime     = 6;
+  eGroup Group                   = 1;
+  int32  Count                   = 2;
+  int32  PolePositionDriver      = 3;
+  int32  PolePosition            = 4;
+  int32  WinningPosition         = 5;
+  int32  WinningDriver           = 6;
+  int32  FastestLapDriver        = 7;
+  float  FastestLapTime          = 8;
+  int32  MostLapsLeadDriver      = 9;
+  int32  MostLapsLead            = 10;
+  repeated int32 LapsLeadDrivers = 11;
 }
 
 message RaceData
@@ -171,8 +191,10 @@ message ResultData
   int32  Incidents         = 9;
   int32  LapsCompleted     = 10;
   int32  LapsLead          = 11;
-  float  Mu                = 12; // Trueskill
-  float  Sigma             = 13; // Trueskill
+  bool   MostLapsLead      = 12;
+  float  FastestLapTime    = 13;
+  float  Mu                = 14; // Trueskill
+  float  Sigma             = 15; // Trueskill
 }
 
 message EventData
