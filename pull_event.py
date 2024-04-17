@@ -53,7 +53,8 @@ if __name__ == "__main__":
     events = [
         # load_event("Daytona 24"),
         # load_event("Bathurst 12 Hour"),
-        load_event("12 Hours of Sebring")
+        # load_event("12 Hours of Sebring"),
+        load_event("Road America 500")
     ]
 
     cfg = LeagueConfiguration(6810)
