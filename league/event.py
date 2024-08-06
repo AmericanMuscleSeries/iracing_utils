@@ -74,7 +74,8 @@ def pull_event(username: str, password: str, name: str, log: bool = False) -> Ev
             _ams_logger.info(f"SOF: {result.sof}")
         for ir_team_result in ir_race_results["results"]:
             result.count_cars_and_laps(ir_team_result["car_class_short_name"], ir_team_result["laps_complete"])
-            team = result.add_team(ir_team_result["team_id"],
+            team = result.add_team(ir_team_result["team_id"] if "team_id" in ir_team_result
+                                   else ir_team_result["cust_id"],
                                    ir_team_result["car_class_short_name"],
                                    ir_team_result["display_name"],
                                    ir_team_result["car_name"])
@@ -86,8 +87,10 @@ def pull_event(username: str, password: str, name: str, log: bool = False) -> Ev
             if log:
                 _ams_logger.info(f"\tTeam: {team.name}, Class: {team.category}, Car: {team.car}")
             # Add team members
+            ir_team_members = ir_team_result["driver_results"] if "driver_results" in ir_team_result \
+                else [ir_team_result]
             # Only drivers that have driven laps are listed here,
-            for ir_team_member in ir_team_result["driver_results"]:
+            for ir_team_member in ir_team_members:
                 driver = team.add_driver(ir_team_member["cust_id"], ir_team_member["display_name"])
                 driver._old_irating = ir_team_member["oldi_rating"]
                 driver._new_irating = ir_team_member["newi_rating"]
@@ -98,7 +101,7 @@ def pull_event(username: str, password: str, name: str, log: bool = False) -> Ev
                 if log:
                     team.get_driver()
                     _ams_logger.info(f"\t\t{driver.name} : {driver.cust_id}")
-            if pull_team_roster:
+            if "driver_results" in ir_team_result and pull_team_roster:
                 # If they crash and quit before all scheduled drivers drove a lap,
                 # They will not be in the driver list
                 # So we also pull the official team member list, which can be very long...
@@ -129,10 +132,11 @@ def fetch_and_report_drivers(event: Event, drivers: list, img_name_postfix: str 
                     "Laps Behind (Class)",
                     "Laps Behind (Overall)",
                     "Final",
+                    "Incidents",
                     "iRating"
                     ]
         # Map the indexes in data for each heading
-        fields = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+        fields = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]
     else:
         headings = [event.name,
                     f"Split / {event.num_splits}",
@@ -143,10 +147,11 @@ def fetch_and_report_drivers(event: Event, drivers: list, img_name_postfix: str 
                     "Laps Driven",
                     "Laps Behind",
                     "Final",
+                    "Incidents",
                     "iRating"
                     ]
         # Map the indexes in data for each heading
-        fields = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+        fields = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
     for cust_id in drivers:
         split_results = event.get_driver_team_results(cust_id)
         for split, teams in split_results.items():
@@ -173,6 +178,7 @@ def fetch_and_report_drivers(event: Event, drivers: list, img_name_postfix: str 
                                  laps_behind_class_leader,
                                  laps_behind_race_leader,
                                  team.reason_out,
+                                 driver.total_incidents,
                                  final_ir
                                  ))
                 else:
@@ -185,6 +191,7 @@ def fetch_and_report_drivers(event: Event, drivers: list, img_name_postfix: str 
                                  f"{driver.total_laps_complete}/{team.total_laps_complete}",
                                  laps_behind_race_leader,
                                  team.reason_out,
+                                 driver.total_incidents,
                                  final_ir
                                  ))
     # Sort our results

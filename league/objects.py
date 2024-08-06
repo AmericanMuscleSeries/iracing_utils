@@ -15,7 +15,19 @@ _ams_logger = logging.getLogger('ams')
 class Group(Enum):
     Unknown = 0
     Pro = 1
-    Am = 2
+    Ch = 2
+    Am = 3
+
+
+class GroupRules:
+    __slots__ = ["min_car_number",
+                 "max_car_number",
+                 "num_drops"]
+
+    def __init__(self, min_car_number: int, max_car_number: int, num_drops: int):
+        self.min_car_number = min_car_number
+        self.max_car_number = max_car_number
+        self.num_drops = num_drops
 
 
 class SerializationFormat(Enum):
@@ -28,6 +40,11 @@ class SerializationFormat(Enum):
 class SortBy(Enum):
     Earned = 0
     ForcedDrops = 1
+
+
+class PositionValue(Enum):
+    Overall = 0
+    Class = 1
 
 
 class League:

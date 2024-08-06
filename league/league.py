@@ -10,10 +10,11 @@ from trueskill import Rating
 from iracingdataapi.client import irDataClient
 
 from google.protobuf import json_format, text_format
-from league.objects_pb2 import *
 
-from league.objects import Group, SerializationFormat, SortBy, League
+from league.objects import Group, GroupRules, SerializationFormat, SortBy, League, PositionValue
 from league.sheets import GDrive
+
+from league.objects_pb2 import *
 
 
 _ams_logger = logging.getLogger('ams')
@@ -24,7 +25,9 @@ class ScoringSystem:
                  "fastest_lap",
                  "laps_lead",
                  "most_laps_lead",
-                 "_handicap"
+                 "separate_pool",
+                 "position_value",
+                 "_handicap",
                  ]
 
     def __init__(self):
@@ -32,6 +35,8 @@ class ScoringSystem:
         self.fastest_lap = 0
         self.laps_lead = 0
         self.most_laps_lead = 0
+        self.separate_pool = False
+        self.position_value = PositionValue.Overall
         self._handicap = False
 
     @property
@@ -52,15 +57,6 @@ class AssignmentScoring(ScoringSystem):
     def __init__(self):
         super().__init__()
         self.assignments = dict()
-
-
-class CarNumberRange:
-    __slots__ = ["min_car_number",
-                 "max_car_number"]
-
-    def __init__(self, min_car_number: int, max_car_number: int):
-        self.min_car_number = min_car_number
-        self.max_car_number = max_car_number
 
 
 class TimePenalty:
@@ -104,7 +100,6 @@ class SeasonConfiguration:
                  "active",
                  "sort_by",
                  "scoring_system",
-                 "num_drops",
                  "non_drivers",
                  "practice_sessions",
                  "time_penalties",
@@ -117,23 +112,30 @@ class SeasonConfiguration:
         self.active = False
         self.sort_by = SortBy.Earned
         self.scoring_system = None
-        self.num_drops = 0
         self.non_drivers = list()
         self.practice_sessions = list()
         self.group_rules = dict()
         self.time_penalties = list()
         self.google_sheet = None
 
-    def set_linear_decent_scoring(self, top_score: int, hcp: bool=False):
+    def set_linear_decent_scoring(self, top_score: int, hcp: bool = False,
+                                  separate_pool: bool = False,
+                                  position_value: PositionValue = PositionValue.Overall):
         self.scoring_system = LinearDecentScoring()
         self.scoring_system.top_score = top_score
+        self.scoring_system.separate_pool = separate_pool
+        self.scoring_system.position_value = position_value
         self.scoring_system._handicap = hcp
         return self.scoring_system
 
-    def set_assignment_scoring(self, assignments: dict, hcp: bool=False):
+    def set_assignment_scoring(self, assignments: dict, hcp: bool = False,
+                               separate_pool: bool = False,
+                               position_value: PositionValue = PositionValue.Overall):
         self.scoring_system = AssignmentScoring()
         self.scoring_system.assignments = assignments
         self.scoring_system._handicap = hcp
+        self.scoring_system.separate_pool = separate_pool
+        self.scoring_system.position_value = position_value
         return self.scoring_system
 
     def add_non_driver(self, cust_id: int):
@@ -148,8 +150,11 @@ class SeasonConfiguration:
     def add_practice_sessions(self, races: list):
         self.practice_sessions.extend(races)
 
-    def add_group_rule(self, group: Group, number_range: CarNumberRange):
-        self.group_rules[group] = number_range
+    def add_group_rule(self, group: Group, rules: GroupRules):
+        self.group_rules[group] = rules
+
+    def get_group_rules(self, group: Group):
+        return self.group_rules[group]
 
     def add_time_penalty(self, race: int, cust_id: int, seconds: int):
         self.time_penalties.append(TimePenalty(race, cust_id, seconds))
@@ -244,23 +249,17 @@ class LeagueConfiguration:
             _ams_logger.info("Pulling season " + str(season_num))
             season = lg.add_season(season_num)
             # TODO We could pull with results_only False to detect if we are in season or not
-            ir_sessions = idc.league_season_sessions(self._ir_id, ir_season["season_id"], True)["sessions"]
-            _ams_logger.info("There were " + str(len(ir_sessions)) + " sessions in season " + str(season_num))
+            ir_sessions = idc.league_season_sessions(self._ir_id, ir_season["season_id"], False)["sessions"]
+            _ams_logger.info("There are " + str(len(ir_sessions)) + " sessions in season " + str(season_num))
 
             race_num = 0
             race_session_num = 0
             for session_num, ir_session in enumerate(ir_sessions):
                 track_name = ir_session["track"]["track_name"]
-                ir_subsession = idc.result(subsession_id=ir_session["subsession_id"])["session_results"]
-                # Skip the session if there was no race
-                ir_race_results = None
-                for ir_event in ir_subsession:
-                    if ir_event["simsession_type"] == 6:
-                        ir_race_results = ir_event
-                if ir_race_results is None:
-                    _ams_logger.info("Session " + str(session_num) + " at " + track_name + " was not a race.")
+                # Check if this is a practice only session
+                if ir_session["qualify_laps"] == 0:
+                    _ams_logger.info("Session " + str(session_num) + " at " + track_name + " was a practice session.")
                     continue
-
                 # Check if this race event was a practice race
                 race_session_num += 1
                 if race_session_num in season_cfg.practice_sessions:
@@ -270,14 +269,28 @@ class LeagueConfiguration:
 
                 #  This is an actual race we are going to score
                 race_num += 1
-                _ams_logger.info("Session " + str(session_num) + " was a race at " + track_name)
-                _ams_logger.info("Processing it as race " + str(race_num))
-
-                race = season.add_race(race_num, ir_session["launch_at"].split('T')[0], ir_session["track"]["track_name"])
+                _ams_logger.info("Session " + str(session_num) + " at " + track_name + " is race "+str(race_num))
+                race = season.add_race(race_num,
+                                       ir_session["launch_at"].split('T')[0],
+                                       ir_session["track"]["track_name"])
+                # Check to see if its run yet
+                if "subsession_id" not in ir_session:
+                    _ams_logger.info("\tRace " + str(race_num) + " at " + track_name + " has not run yet.")
+                    continue
+                ir_subsession = idc.result(subsession_id=ir_session["subsession_id"])
+                ir_subsession_results = ir_subsession["session_results"]
+                ir_race_results = None
+                for ir_event in ir_subsession_results:
+                    if ir_event["simsession_type"] == 6:
+                        ir_race_results = ir_event
+                if ir_race_results is None:
+                    _ams_logger.info("\tRace " + str(race_num) + " at " + track_name + " has not completed yet.")
+                    continue
 
                 ir_car_results = ir_race_results["results"]
-                # all_laps = idc.result_lap_chart_data(subsession_id=session["subsession_id"])
                 ir_total_laps = ir_car_results[0]["laps_complete"]
+                # Pretty generic data about the lap, it's what's displayed in the web UI
+                #all_laps = idc.result_lap_chart_data(subsession_id=ir_session["subsession_id"])
 
                 # Loop over every driver in this race
                 for ir_car_result in ir_car_results:
@@ -308,6 +321,8 @@ class LeagueConfiguration:
                     if driver.car_number is None:
                         driver_car_number = int(ir_car_result["livery"]["car_number"])
                         driver.set_car_number(driver_car_number, season_cfg.get_group(driver_car_number))
+
+                    # all_laps = idc.result_lap_data(subsession_id=ir_session["subsession_id"], cust_id=cust_id)
 
                     # Just book keep, we will rack, stack, and score later
                     result = race.add_result(cust_id)
@@ -352,6 +367,7 @@ class LeagueConfiguration:
                             rr._interval += time_penalty.seconds
                             _ams_logger.info("A " + str(time_penalty.seconds) + "s time penalty has been applied to " +
                                              lg.get_member(rr.cust_id).nickname)
+
                 if race_penalty:  # Recalculate finish positions
                     # Penalties are added to the interval, and only to cars on the lead lap
                     # So we only need to update the finishing positions on lead lap cars
@@ -364,24 +380,59 @@ class LeagueConfiguration:
                     for pos, rr in enumerate(new_lead_laps):
                         rr._finish_position = pos + 1
 
+                # Gather up some race statistics
+                # TODO do we want to save this out?
+                final_group_order = {}
+                group_overall_winning_position = {}
+                for rr in race.grid.values():
+                    driver = season.get_driver(rr.cust_id)
+                    if driver.group not in group_overall_winning_position:
+                        final_group_order[driver.group] = []
+                        group_overall_winning_position[driver.group] = rr._finish_position
+                    final_group_order[driver.group].append(driver.car_number)
+
                 # Start scoring this race
                 if isinstance(season_cfg.scoring_system, LinearDecentScoring):
                     max_points = season_cfg.scoring_system.top_score
                     for rr in race.grid.values():
-                        rr._points = max_points - rr._finish_position+1
+                        driver = season.get_driver(rr.cust_id)
+
+                        if not season_cfg.scoring_system.separate_pool:
+                            rr._points = max_points - rr._finish_position+1
+                        else:
+                            if season_cfg.scoring_system.position_value == PositionValue.Overall:
+                                rr._points = (max_points -
+                                              (rr._finish_position - group_overall_winning_position[driver.group]))
+
+                            elif season_cfg.scoring_system.position_value == PositionValue.Class:
+                                rr._points = (max_points - final_group_order[driver.group].index(driver.car_number))
+
                         if rr._points < 0:
                             rr._points = 0
-                            rr._points = 0
-                        season.get_driver(rr.cust_id)._race_finish_points += rr._points
+                        driver._race_finish_points += rr._points
                         if rr._laps_lead > 0:
                             rr._points += season_cfg.scoring_system.laps_lead
+
                 elif isinstance(season_cfg.scoring_system, AssignmentScoring):
                     for rr in race.grid.values():
-                        pos_pts = 0
-                        if rr._finish_position in season_cfg.scoring_system.assignments:
-                            pos_pts = season_cfg.scoring_system.assignments[rr._finish_position]
-                        rr._points = pos_pts
-                        season.get_driver(rr.cust_id)._race_finish_points += rr._points
+                        rr._points = 0
+                        driver = season.get_driver(rr.cust_id)
+
+                        if not season_cfg.scoring_system.separate_pool:
+                            if rr._finish_position in season_cfg.scoring_system.assignments:
+                                rr._points = season_cfg.scoring_system.assignments[rr._finish_position]
+                        else:
+                            scoring_position = 100
+                            if season_cfg.scoring_system.position_value == PositionValue.Overall:
+                                scoring_position = rr._finish_position - group_overall_winning_position[driver.group]
+                            elif season_cfg.scoring_system.position_value == PositionValue.Class:
+                                scoring_position = final_group_order[driver.group].index(driver.car_number)
+                            scoring_position += 1  # Position assignment start at 1, not 0
+
+                            if scoring_position in season_cfg.scoring_system.assignments:
+                                rr._points = season_cfg.scoring_system.assignments[scoring_position]
+
+                        driver._race_finish_points += rr._points
                         if rr._laps_lead > 0:
                             rr._points += season_cfg.scoring_system.laps_lead
                 else:
@@ -427,7 +478,10 @@ class LeagueConfiguration:
                     race_stats.check_if_most_laps_lead(result.cust_id, result.laps_lead)
 
                 # Now push those stats back into the results and drivers
-                for stat in race.stats.values():
+                for grp, stat in race.stats.items():
+                    if grp == Group.Unknown:
+                        continue
+
                     dvr = season.get_driver(stat.winning_driver)
                     dvr._total_wins += 1
 
@@ -482,8 +536,9 @@ class LeagueConfiguration:
                 driver._earned_points = sum(points)
                 driver._handicap_points = sum(points) + sum(hcp_points)
                 driver._drop_points = 0
-                if 0 < season_cfg.num_drops < len(points):
-                    driver._drop_points = sum(sorted(points)[:season_cfg.num_drops])
+                num_drops = season_cfg.get_group_rules(driver.group).num_drops
+                if 0 < num_drops < len(points) and len(points) >= 8:
+                    driver._drop_points = sum(sorted(points)[:num_drops])
                 driver._average_finish = sum(finishing_positions) / len(finishing_positions)
 
         # End of looping over every season
@@ -518,15 +573,20 @@ def serialize_league_configuration_to_bind(src: LeagueConfiguration, dst: League
             season_data.ScoringSystem.LinearDecent.Base.PolePosition = season.scoring_system.pole_position
             season_data.ScoringSystem.LinearDecent.Base.FastestLap = season.scoring_system.fastest_lap
             season_data.ScoringSystem.LinearDecent.Base.LapsLead = season.scoring_system.laps_lead
+            season_data.ScoringSystem.LinearDecent.Base.MostLapsLead = season.scoring_system.most_laps_lead
+            season_data.ScoringSystem.LinearDecent.Base.SeparatePool = season.scoring_system.separate_pool
+            season_data.ScoringSystem.LinearDecent.Base.PositionValue = season.scoring_system.position_value.value
         elif isinstance(season.scoring_system, AssignmentScoring):
             for pos, pts in season.scoring_system.assignments.items():
                 season_data.ScoringSystem.Assignment.PositionScore[pos] = pts
             season_data.ScoringSystem.Assignment.Base.PolePosition = season.scoring_system.pole_position
             season_data.ScoringSystem.Assignment.Base.FastestLap = season.scoring_system.fastest_lap
             season_data.ScoringSystem.Assignment.Base.LapsLead = season.scoring_system.laps_lead
+            season_data.ScoringSystem.Assignment.Base.MostLapsLead = season.scoring_system.most_laps_lead
+            season_data.ScoringSystem.Assignment.Base.SeparatePool = season.scoring_system.separate_pool
+            season_data.ScoringSystem.Assignment.Base.PositionValue = season.scoring_system.position_value.value
 
         season_data.Active = season.active
-        season_data.NumDrops = season.num_drops
 
         for cust_id in season.non_drivers:
             season_data.NonDrivers.append(cust_id)
@@ -534,12 +594,13 @@ def serialize_league_configuration_to_bind(src: LeagueConfiguration, dst: League
         for session_number in season.practice_sessions:
             season_data.PracticeSessions.append(session_number)
 
-        for group, car_number_range in season.group_rules.items():
-            gr = GroupRuleData()
-            gr.MinCarNumber = car_number_range.min_car_number
-            gr.MaxCarNumber = car_number_range.max_car_number
+        for group, rule in season.group_rules.items():
+            gr = GroupRulesData()
             gr.Group = group.value
-            season_data.GroupRules.GroupRule.append(gr)
+            gr.MinCarNumber = rule.min_car_number
+            gr.MaxCarNumber = rule.max_car_number
+            gr.NumberOfDrops = rule.num_drops
+            season_data.GroupRule.append(gr)
 
         for tp in season.time_penalties:
             tpd = TimePenaltyData()
@@ -582,25 +643,31 @@ def serialize_league_configuration_from_bind(src: LeagueConfigurationData, dst: 
             scoring = season.set_linear_decent_scoring(season_data.ScoringSystem.LinearDecent.TopScore,
                                                        season_data.ScoringSystem.LinearDecent.Handicap)
             scoring.pole_position = season_data.ScoringSystem.LinearDecent.Base.PolePosition
-            scoring.laps_lead = season_data.ScoringSystem.LinearDecent.Base.LapsLead
             scoring.fastest_lap = season_data.ScoringSystem.LinearDecent.Base.FastestLap
+            scoring.laps_lead = season_data.ScoringSystem.LinearDecent.Base.LapsLead
+            scoring.most_laps_lead = season_data.ScoringSystem.LinearDecent.Base.MostLapsLead
+            scoring.separate_pool = season_data.ScoringSystem.LinearDecent.Base.SeparatePool
+            scoring.position_value = PositionValue(season_data.ScoringSystem.LinearDecent.Base.PositionValue)
         elif system == "Assignment":
             scoring = season.set_assignment_scoring(season_data.ScoringSystem.Assignment.PositionScore)
             scoring.pole_position = season_data.ScoringSystem.Assignment.Base.PolePosition
-            scoring.laps_lead = season_data.ScoringSystem.Assignment.Base.LapsLead
             scoring.fastest_lap = season_data.ScoringSystem.Assignment.Base.FastestLap
+            scoring.laps_lead = season_data.ScoringSystem.Assignment.Base.LapsLead
+            scoring.most_laps_lead = season_data.ScoringSystem.Assignment.Base.MostLapsLead
+            scoring.separate_pool = season_data.ScoringSystem.Assignment.Base.SeparatePool
+            scoring.position_value = PositionValue(season_data.ScoringSystem.Assignment.Base.PositionValue)
 
         season.active = season_data.Active
-        season.num_drops = season_data.NumDrops
 
         season.add_non_drivers(season_data.NonDrivers)
 
         season.add_practice_sessions(season_data.PracticeSessions)
 
-        for group_rule_data in season_data.GroupRules.GroupRule:
+        for group_rule_data in season_data.GroupRule:
             season.add_group_rule(Group(group_rule_data.Group),
-                                  CarNumberRange(group_rule_data.MinCarNumber,
-                                                 group_rule_data.MaxCarNumber))
+                                  GroupRules(group_rule_data.MinCarNumber,
+                                             group_rule_data.MaxCarNumber,
+                                             group_rule_data.NumberOfDrops))
 
         for time_penalty_data in season_data.TimePenalty:
             season.add_time_penalty(time_penalty_data.Race,

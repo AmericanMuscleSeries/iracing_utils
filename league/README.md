@@ -27,6 +27,9 @@ and click the download arrow on the AMS_Utils row under the `OAuth 2.0 Client ID
 This will bring up a dialog where you can download the json file.
 Rename it `credentials.json` and place it in your working directory.
 
+If it's been a while, and you are getting errors connecting
+Delete this file %AppData%\Roaming\gspread\authorized_user.json
+
 ## Session Support
 
 ### Aussie Pursuit

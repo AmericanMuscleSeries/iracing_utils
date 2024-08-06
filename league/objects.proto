@@ -17,16 +17,18 @@ enum eSortBy
   ForcedDrops=1;
 }
 
-message GroupRuleData
+enum ePositionValue
 {
-  int32     MinCarNumber   = 1;
-  int32     MaxCarNumber   = 2;
-  eGroup    Group          = 3;
+  Overall=0;
+  Class=1;
 }
 
 message GroupRulesData
 {
-  repeated GroupRuleData GroupRule = 1;
+  eGroup    Group          = 1;
+  int32     MinCarNumber   = 2;
+  int32     MaxCarNumber   = 3;
+  int32     NumberOfDrops  = 4;
 }
 
 message TimePenaltyData
@@ -38,10 +40,12 @@ message TimePenaltyData
 
 message ScoringSystemData
 {
-  int32  PolePosition = 1;
-  int32  FastestLap   = 2;
-  int32  LapsLead     = 3;
-  int32  MostLapsLead = 4;
+  int32          PolePosition  = 1;
+  int32          FastestLap    = 2;
+  int32          LapsLead      = 3;
+  int32          MostLapsLead  = 4;
+  bool           SeparatePool  = 5; // Use the same pool of points per class or not
+  ePositionValue PositionValue = 6; // How to assign a position value to a league with more than one class
 }
 
 // Race winner will get TopScore, each subsequent racer will get 1 less point
@@ -84,13 +88,12 @@ message SeasonConfigurationData
 {
   bool                     Active           = 1;
   AnyScoringSystemData     ScoringSystem    = 2;
-  int32                    NumDrops         = 3;
-  repeated int32           NonDrivers       = 4;
-  repeated int32           PracticeSessions = 5;
-  GroupRulesData           GroupRules       = 6;
-  repeated TimePenaltyData TimePenalty      = 7;
-  GoogleSheetsData         GoogleSheets     = 8;
-  eSortBy                  SortBy           = 9;
+  repeated int32           NonDrivers       = 3;
+  repeated int32           PracticeSessions = 4;
+  repeated GroupRulesData  GroupRule        = 5;
+  repeated TimePenaltyData TimePenalty      = 6;
+  GoogleSheetsData         GoogleSheets     = 7;
+  eSortBy                  SortBy           = 8;
 }
 
 message LeagueConfigurationData

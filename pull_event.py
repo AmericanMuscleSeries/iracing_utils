@@ -54,7 +54,11 @@ if __name__ == "__main__":
         # load_event("Daytona 24"),
         # load_event("Bathurst 12 Hour"),
         # load_event("12 Hours of Sebring"),
-        load_event("Road America 500")
+        # load_event("Road America 500"),
+        # load_event("24 Hours of Nurburgring"),
+        # load_event("iRacing.com Indy 500"),
+        # load_event("6 Hours of the Glen"),
+        load_event("24 Hours of Spa"),
     ]
 
     cfg = LeagueConfiguration(6810)

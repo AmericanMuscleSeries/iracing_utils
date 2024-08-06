@@ -40,33 +40,33 @@ class GDrive:
         season_values = list()
 
         dates = list()
+        date_values = list()
         tracks = list()
+        track_values = list()
+
         # How many cells of data for each race are we pushing?
         num_race_cells = 12
         if handicap:
             num_race_cells = 13
 
         season = lg.get_season(season)
+        for race_number in range(len(season.races)):
+            race = season.get_race(race_number + 1)
+            track_name = race.track
+            if track_name.count(' ') > 2:
+                split_at = track_name.find(' ', track_name.find(' ') + 1)
+                track_name = race.track[:split_at] + '\n' + race.track[split_at:]
+            for i in range(num_race_cells):
+                tracks.append(track_name)
+                dates.append(race.date)
+        date_values.append(dates)
+        track_values.append(tracks)
+
         for group in groups:
             season_values.clear()
-
-            dates.clear()
-            tracks.clear()
-            for race_number in range(len(season.races)):
-                race = season.get_race(race_number + 1)
-                track_name = race.track
-                if track_name.count(' ') > 2:
-                    split_at = track_name.find(' ', track_name.find(' ') + 1)
-                    track_name = race.track[:split_at] + '\n' + race.track[split_at:]
-                for i in range(11):
-                    tracks.append(track_name)
-                    dates.append(race.date)
-                date_values = list().append(dates)
-                track_values = list().append(tracks)
-            date_values = list().append(dates)
-            track_values = list().append(tracks)
-            self._result_sheets[group].update(range_name="M2", values=date_values)
-            self._result_sheets[group].update(range_name="M3", values=track_values)
+            # Push Race Dates and Tracks
+            self._result_sheets[group].update(range_name="R2", values=date_values)
+            self._result_sheets[group].update(range_name="R3", values=track_values)
             count += 2
 
             for cust_id, driver in season.drivers.items():
@@ -145,11 +145,11 @@ if __name__ == "__main__":
 
     # TODO properly utilize arguments
 
+    gdrive = GDrive("./credentials.json")
+    gdrive.connect_to_results("1SZSIvtBNU4n94vmcQFFTNErxr6uUVKz9lHVfySHWxFI-8axQGeE2G7pODwCLvA",
+                              {Group.Pro: "Pro Drivers", Group.Ch: "Ch Drivers", Group.Am: "Am Drivers"})
+
     r = open("./league.json")
     d = json.load(r)
     league = League.from_dict(d)
-
-    gdrive = GDrive("./credentials.json")
-    gdrive.connect_to_results("1jlybjNg8sQGFuwSPrnNvQRq5SrIX73QUbISNVIp3Clk",
-                              {Group.Pro: "Pro Drivers", Group.Am: "Am Drivers"})
-    gdrive.push_results(league, 5, [Group.Pro, Group.Am])
+    gdrive.push_results(league, 7, [Group.Pro, Group.Ch, Group.Am])
