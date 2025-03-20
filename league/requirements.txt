@@ -1,7 +1,0 @@
-numpy
-pandas
-protobuf
-iracingdataapi
-trueskill
-gspread
-dataframe-image

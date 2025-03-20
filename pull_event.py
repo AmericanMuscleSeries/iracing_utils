@@ -6,14 +6,42 @@ import json
 import logging
 import argparse
 from pathlib import Path
+from iracingdataapi.client import irDataClient
 
-from league.event import pull_event, fetch_and_report_drivers, fetch_and_report_league, list_events
-from league.league import LeagueConfiguration
-from league.objects import Event
+from core.event import pull_event, fetch_and_report_drivers, list_events, report_owner_events
+from core.league import LeagueConfiguration
+from core.objects import Event
 
-_ams_logger = logging.getLogger('ams')
+_logger = logging.getLogger('log')
 
-if __name__ == "__main__":
+
+def load_event(idc: irDataClient, series_name: str, year: int) -> Event:
+    fp = Path(f"./events/{series_name}.json")
+    if fp.exists():
+        _logger.info(f"Reading event file for : {series_name}")
+        r = open(fp)
+        d = json.load(r)
+        event = Event.from_dict(d)
+    else:
+        event = pull_event(idc, series_name, year, False)
+        if event is None:
+            raise Exception(f"Could not find the event: {series_name}")
+        _logger.info(f"Writing event file for : {series_name}")
+        with open(f"./events/{series_name}.json", 'w') as fp:
+            json.dump(event.as_dict(), fp, indent=2)
+    # Fill out ownership info
+    for split in range(event.num_splits):
+        result = event.get_result(split+1)
+        for team_id, team in result._teams.items():
+            if team.owner not in event.team_owners:
+                event.team_owners[team.owner] = list()
+            owned_teams = event.team_owners[team.owner]
+            if team_id not in owned_teams:
+                owned_teams.append(team_id)
+    return event
+
+
+def main():
     logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s', filename="ams.log", filemode="w")
     logging.getLogger('ams').setLevel(logging.INFO)
     logging.getLogger().addHandler(logging.StreamHandler(sys.stdout))
@@ -30,52 +58,51 @@ if __name__ == "__main__":
         help="iracing password."
     )
     opts = parser.parse_args()
+    idc = irDataClient(opts.username, opts.password)
 
-    list_events(opts.username, opts.password, 2024)
+    output_dir = Path("./events")
+    output_dir.mkdir(exist_ok=True)
 
-    def load_event(name: str) -> Event:
-        fp = Path(f"./{name}.json")
-        if fp.exists():
-            _ams_logger.info(f"Reading event file for : {name}")
-            r = open(f"{name}.json")
-            d = json.load(r)
-            event = Event.from_dict(d)
-        else:
-            event = pull_event(opts.username, opts.password, name, False)
-            if event is None:
-                raise Exception(f"Could not find the event: {name}")
-            _ams_logger.info(f"Writing event file for : {name}")
-            e = event.as_dict()
-            with open(f"{name}.json", 'w') as fp:
-                json.dump(e, fp, indent=2)
-        return event
-
+    year = 2025
+    list_events(idc, year)
     events = [
-        # load_event("Daytona 24"),
-        # load_event("Bathurst 12 Hour"),
-        # load_event("12 Hours of Sebring"),
-        # load_event("Road America 500"),
-        # load_event("24 Hours of Nurburgring"),
-        # load_event("iRacing.com Indy 500"),
-        # load_event("6 Hours of the Glen"),
-        load_event("24 Hours of Spa"),
+        # load_event(idc, "Roar Before the 24", year),
+        # load_event(idc, "Daytona 24", year),
+        load_event(idc, "Bathurst 12 Hour", year),
+        # load_event(idc, "12 Hours of Sebring", year),
+        # load_event(idc, "Road America 500", year),
+        # load_event(idc, "24 Hours of Nurburgring", year),
+        # load_event(idc, "iRacing.com Indy 500", year),
+        # load_event(idc, "6 Hours of the Glen", year),
+        # load_event(idc, "24 Hours of Spa", year),
+        # load_event(idc, "iRacing MX-500 - Fixed", year),
+        # load_event(idc, "Indy 6 Hour", year),
+        # load_event(idc, "Petit Le Mans", year),
+        # load_event(idc, "Fuji 8 Hour", year),
+        # load_event(idc, "SCCA Runoffs - Spec Racer Ford", year),
+        # load_event(idc, "THE Production Car Challenge", year),
     ]
+
+    for event in events:
+        report_owner_events(idc, owner_id=180474, event=event, output_dir=output_dir)
 
     cfg = LeagueConfiguration(6810)
     lg = cfg.fetch_league(opts.username, opts.password)
 
     # Discord registration
-    discord = []
-    registrations = Path("./registrations.json")
-    if registrations.exists():
-        r = open("./registrations.json")
-        d = json.load(r)
-        for key, driver in d.items():
-            discord.append(int(driver["iracing_id"]))
+    ams = set()
+    for s in ["07", "08"]:
+        users = Path(f"./users_{s}.json")
+        if users.exists():
+            r = open(users)
+            d = json.load(r)
+            for key, driver in d.items():
+                ams.add(int(driver["iracing_id"]))
+    for lgKey in lg.members.keys():
+        ams.add(lgKey)
 
     for event in events:
-        fetch_and_report_league(event, lg, "-AMS")
-        fetch_and_report_drivers(event, discord, "-Discord")
+        fetch_and_report_drivers(event, list(ams), "-AMS", output_dir=output_dir)
 
         # Make lists of notable iracers to report on
         streamers = [
@@ -112,7 +139,7 @@ if __name__ == "__main__":
             415944,  # Ayhancan Guven
             206066,  # Daniel Morad
         ]
-        fetch_and_report_drivers(event, streamers, "-Streamers")
+        fetch_and_report_drivers(event, streamers, "-Streamers", output_dir=output_dir)
         drivers = [
             168966,  # Max Verstappen
             60271,   # Lewis Hamilton
@@ -183,10 +210,10 @@ if __name__ == "__main__":
             74902,   # Jordan Pepper
             50433,   # Nicky Catsburg
             89404,   # Stevan McAleer
+            421827,  # Mirko Bortolotti
         ]
-        fetch_and_report_drivers(event, drivers, "-Pros")
+        fetch_and_report_drivers(event, drivers, "-Pros", output_dir=output_dir)
 
 
-
-
-
+if __name__ == "__main__":
+    main()

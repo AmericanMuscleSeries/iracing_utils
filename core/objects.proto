@@ -1,0 +1,230 @@
+syntax = "proto3";
+option optimize_for = SPEED;
+
+// Data structures describing the league
+
+enum eSortBy
+{
+  Earned=0;
+  ForcedDrops=1;
+}
+
+enum ePositionValue
+{
+  Overall=0;
+  Class=1;
+}
+
+message GroupRulesData
+{
+  string    Group          = 1;
+  int32     MinCarNumber   = 2;
+  int32     MaxCarNumber   = 3;
+  int32     NumberOfDrops  = 4;
+}
+
+message TimePenaltyData
+{
+  int32 Race    = 1;
+  int32 Driver  = 2;
+  int32 Seconds = 3;
+}
+
+message PointsThresholdData
+{
+  float MinimumRequirement = 1; // < 1 is a % of the race, >= 1 is minimum number of laps back
+  int32 Points             = 2;
+}
+
+message IncidentPointsData
+{
+  map<int32,int32> PointMap           = 1; // Map of number of the number of incidents to the points received
+  float            MinimumRequirement = 2; // < 1 is a % of the race, >= 1 is minimum number of laps back
+  bool             SeparatePoints     = 3; // Include Incident points in race points or not
+}
+
+message ScoringSystemData
+{
+  int32               PolePosition  = 1; // Points received for getting pole position
+  PointsThresholdData FastestLap    = 2; // Points received for getting fastest lap in the race
+  PointsThresholdData LeadALap      = 3; // Points received for leading a lap
+  PointsThresholdData MostLapsLead  = 4; // Points received for leading the most laps
+  PointsThresholdData FinishRace    = 5; // Points received if you finish X% of the race
+  IncidentPointsData  CleanDriver   = 6; // Map of points to get based on your incidents
+  bool                SeparatePool  = 7; // Use the same pool of points per class or not
+  ePositionValue      PositionValue = 8; // How to assign a position value to a league with more than one class
+}
+
+// Race winner will get TopScore, each subsequent racer will get 1 less point
+// Drivers outside of the TopScore will get zero points (not negative points)
+message LinearDecentScoringData
+{
+  ScoringSystemData Base     = 1;
+  int32             TopScore = 2;
+  bool              Handicap = 3;
+}
+
+// Specify the points for each finishing position
+message AssignmentScoringData
+{
+  ScoringSystemData Base          = 1;
+  map<int32,int32>  PositionScore = 2; // Key is position, value is the the amount of points awarded
+}
+
+message AnyScoringSystemData
+{
+  oneof System
+  {
+    LinearDecentScoringData  LinearDecent = 1;
+    AssignmentScoringData    Assignment   = 2;
+  }
+}
+
+message SheetsDisplayData
+{
+  string  ID     = 1; // Unique key from sheet URL
+  eSortBy SortBy = 2;
+}
+
+message LeagueConfigurationData
+{
+  int32                    iRacingID        = 1;
+  string                   Name             = 2;
+  int32                    Season           = 3;
+  AnyScoringSystemData     ScoringSystem    = 4;
+  repeated int32           NonDrivers       = 5;
+  repeated int32           PracticeSessions = 6;
+  repeated GroupRulesData  GroupRule        = 7;
+  repeated TimePenaltyData TimePenalty      = 8;
+  SheetsDisplayData        SheetsDisplay    = 9;
+}
+
+// Data structures for holding iRacing data
+
+message LeagueResultData
+{
+  map<int32, MemberData> Members = 1; // Key is driver iracing id (why do I need members again?)
+  map<int32, DriverData> Drivers = 2; // Key is driver iracing id
+  map<int32, RaceData>   Races   = 3; // Key is race number
+}
+
+message MemberData
+{
+  string    Name     = 1;
+  string    Nickname = 2;
+}
+
+message DriverData
+{
+  string    Name                 = 1;
+  int32     OldRating            = 2;
+  int32     NewRating            = 3;
+  int32     CarNumber            = 4;
+  string    Group                = 5;
+  int32     TotalRaceStarts      = 6;
+  // Points
+  int32     EarnedPoints         = 7;  // With all added bonuses
+  int32     DropPoints           = 8;  // Earned points removed due to drop weeks
+  int32     HandicapPoints       = 9;  // Computed like a golf handicap
+  int32     CleanDriverPoints    = 10;
+  int32     CompletedRacesPoints = 11;
+  // Pole Position
+  int32     TotalPolePositions   = 12;
+  int32     PolePositionPoints   = 13;
+  // Finishings
+  int32     TotalWins            = 14;
+  float     AverageFinish        = 15;
+  int32     RaceFinishPoints     = 16; // Points from finishing position scoring system (no bonuses)
+  int32     TotalIncidents       = 17;
+  int32     TotalLapsComplete    = 18;
+  int32     TotalCompletedRaces  = 19; // Competed per FinishPointsData
+  // Laps Lead
+  int32     TotalLeadALap        = 20; // Number of races lead a lap
+  int32     LeadALapPoints       = 21;
+  int32     TotalMostLapsLead    = 22; // Number of races lead the most laps
+  int32     MostLapsLeadPoints   = 23;
+  // Fast Laps
+  int32     TotalFastestLaps     = 24; // Number of races with the fastest lap
+  int32     FastestLapPoints     = 25;
+  // Trueskill
+  float     Mu                   = 26;
+  float     Sigma                = 27;
+}
+
+
+message ResultData
+{
+  bool   PolePosition         = 1;
+  bool   FastestLap           = 2;
+  int32  StartPosition        = 3;
+  int32  FinishPosition       = 4;
+  int32  Points               = 5;
+  int32  HandicapPoints       = 6;
+  int32  CleanDriverPoints    = 7;
+  int32  CompletedRacePoints  = 8;
+  float  Interval             = 9;
+  int32  Incidents            = 10;
+  int32  LapsCompleted        = 11;
+  int32  LapsLead             = 12;
+  bool   MostLapsLead         = 13;
+  float  FastestLapTime       = 14;
+  float  Mu                   = 15; // Trueskill
+  float  Sigma                = 16; // Trueskill
+  repeated int32 LapPositions = 17;
+}
+
+message GroupStatsData
+{
+  int32  Count                   = 2;
+  int32  PolePositionDriver      = 3;
+  int32  PolePosition            = 4;
+  int32  WinningPosition         = 5;
+  int32  WinningDriver           = 6;
+  int32  FastestLapDriver        = 7;
+  float  FastestLapTime          = 8;
+  int32  MostLapsLeadDriver      = 9;
+  int32  MostLapsLead            = 10;
+  repeated int32 LapsLeadDrivers = 11;
+}
+
+message RaceData
+{
+  string                      Date       = 1;
+  string                      Track      = 2;
+  map<int32, ResultData>      Grid       = 3; // key is driver iracing id
+  map<string, GroupStatsData> GroupStats = 4; // key is group
+}
+
+message EventData
+{
+  string                      Name         = 1;
+  int32                       NumSplits    = 2;
+  bool                        IsMulticlass = 3;
+  map<int32, EventResultData> Results      = 4; // Key=Split
+}
+
+message EventResultData
+{
+  int32                    StrengthOfField    = 1;
+  string                   URL                = 2;
+  map<string, int32>       StrengthOfCategory = 3; // Key is category
+  map<string, int32>       NumCategoryCars    = 4; // Key is category
+  map<string, int32>       NumCategoryLaps    = 5; // Key is category
+  map<int32,EventTeamData> Teams              = 6; // Key is iracing team id
+}
+
+message EventTeamData
+{
+  string                   Name                  = 1;
+  string                   Category              = 2;
+  string                   Car                   = 3;
+  string                   ReasonOut             = 4;
+  int32                    FinishPosition        = 5;
+  int32                    FinishPositionInClass = 6;
+  int32                    TotalIncidents        = 7;
+  int32                    TotalLapsComplete     = 8;
+  int32                    Owner                 = 9;
+  map<int32, DriverData>   Drivers               = 10;  // Key is driver iracing id
+  map<int32, MemberData>   Members               = 11; // Key is driver iracing id
+}
+

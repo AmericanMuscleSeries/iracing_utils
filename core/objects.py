@@ -7,16 +7,9 @@ from enum import Enum
 from collections import OrderedDict
 
 from google.protobuf import json_format, text_format
-from league.objects_pb2 import *
+from core.objects_pb2 import EventData, LeagueResultData
 
-_ams_logger = logging.getLogger('ams')
-
-
-class Group(Enum):
-    Unknown = 0
-    Pro = 1
-    Ch = 2
-    Am = 3
+_logger = logging.getLogger('log')
 
 
 class GroupRules:
@@ -37,96 +30,39 @@ class SerializationFormat(Enum):
     TEXT = 3
 
 
-class SortBy(Enum):
-    Earned = 0
-    ForcedDrops = 1
-
-
 class PositionValue(Enum):
     Overall = 0
     Class = 1
 
 
-class League:
-    __slots__ = ["members", "seasons"]
+class LeagueResult:
+    __slots__ = ["members", "drivers", "races"]
 
     def __init__(self):
         self.members = dict()
-        self.seasons = dict()
+        self.drivers = dict()
+        self.races = dict()
 
     def as_dict(self):
-        string = serialize_league_to_string(self, SerializationFormat.JSON)
+        string = serialize_league_result_to_string(self, SerializationFormat.VERBOSE_JSON)
         return json.loads(string)
 
     @staticmethod
     def from_dict(d: dict):
         string = json.dumps(d)
-        return serialize_league_from_string(string, SerializationFormat.JSON)
+        return serialize_league_result_from_string(string, SerializationFormat.JSON)
 
     def add_member(self, cust_id: int, name: str, nickname: str = None):
         if cust_id not in self.members:
             self.members[cust_id] = Member(cust_id, name, nickname)
         else:
-            _ams_logger.warning("Member " + name + " already exists.")
+            _logger.warning("Member " + name + " already exists.")
         return self.members[cust_id]
 
     def get_member(self, cust_id: int):
         if cust_id not in self.members:
             return None
         return self.members[cust_id]
-
-    def add_season(self, number: int):
-        if number not in self.seasons:
-            self.seasons[number] = Season(number)
-        else:
-            _ams_logger.warning("Season " + str(number) + " already exists.")
-        return self.seasons[number]
-
-    def get_season(self, number: int):
-        if number not in self.seasons:
-            return None
-        return self.seasons[number]
-
-
-class Member:
-    __slots__ = ["_cust_id",
-                 "_name",
-                 "_nickname"]
-
-    def __init__(self, cust_id: int, name: str, nickname: str = None):
-        self._cust_id = cust_id
-        self._name = name
-        if nickname is None:
-            self._nickname = ""
-        else:
-            self._nickname = nickname
-
-    @property
-    def cust_id(self):
-        return self._cust_id
-
-    @property
-    def name(self):
-        return self._name
-
-    @property
-    def nickname(self):
-        return self._nickname
-
-
-class Season:
-    __slots__ = ["_number",
-                 "drivers",
-                 "races"]
-
-    def __init__(self, number: int):
-        self._number = number
-        self.drivers = dict()
-        self.races = dict()
-
-    @property
-    def number(self):
-        return self._number
 
     def add_driver(self, cust_id: int):
         if cust_id not in self.drivers:
@@ -149,6 +85,29 @@ class Season:
         return self.races[number]
 
 
+class Member:
+    __slots__ = ["_cust_id",
+                 "_name",
+                 "_nickname"]
+
+    def __init__(self, cust_id: int, name: str, nickname: str = None):
+        self._cust_id = cust_id
+        self._name = name
+        if nickname is None:
+            self._nickname = ""
+        else:
+            self._nickname = nickname
+
+    @property
+    def cust_id(self): return self._cust_id
+
+    @property
+    def name(self): return self._name
+
+    @property
+    def nickname(self): return self._nickname
+
+
 class Driver:
     __slots__ = ["_cust_id",
                  "_name",
@@ -156,12 +115,13 @@ class Driver:
                  "_new_irating",
                  "_car_number",  # Can change in season
                  "_group",  # Can change in season
-                 "_total_races",
+                 "_total_race_starts",
                  # Points
                  "_earned_points",
                  "_drop_points",
                  "_handicap_points",
                  "_clean_driver_points",
+                 "_completed_race_points",
                  # Pole Position
                  "_total_pole_positions",
                  "_pole_position_points",
@@ -171,9 +131,10 @@ class Driver:
                  "_race_finish_points",
                  "_total_incidents",
                  "_total_laps_complete",
+                 "_total_completed_races",
                  # Laps Lead
-                 "_total_laps_lead",
-                 "_laps_lead_points",
+                 "_total_lead_a_lap",
+                 "_lead_a_lap_points",
                  "_total_most_laps_lead",
                  "_most_laps_lead_points",
                  # Fast Laps
@@ -189,12 +150,13 @@ class Driver:
         self._new_irating = 0
         self._car_number = None
         self._group = None
-        self._total_races = 0
+        self._total_race_starts = 0
         # Points
         self._earned_points = 0
         self._drop_points = 0
         self._handicap_points = 0
         self._clean_driver_points = 0
+        self._completed_race_points = 0
         # Pole Position
         self._total_pole_positions = 0
         self._pole_position_points = 0
@@ -204,9 +166,10 @@ class Driver:
         self._race_finish_points = 0
         self._total_incidents = 0
         self._total_laps_complete = 0
+        self._total_completed_races = 0
         # Laps Lead
-        self._total_laps_lead = 0
-        self._laps_lead_points = 0
+        self._total_lead_a_lap = 0
+        self._lead_a_lap_points = 0
         self._total_most_laps_lead = 0
         self._most_laps_lead_points = 0
         # Fast Laps
@@ -229,13 +192,13 @@ class Driver:
     def new_irating(self): return self._new_irating
 
     @property
-    def group(self): return self._group
-
-    @property
     def car_number(self): return self._car_number
 
     @property
-    def total_races(self): return self._total_races
+    def group(self): return self._group
+
+    @property
+    def total_race_starts(self): return self._total_race_starts
 
     @property
     def earned_points(self): return self._earned_points
@@ -248,6 +211,9 @@ class Driver:
 
     @property
     def clean_driver_points(self): return self._clean_driver_points
+
+    @property
+    def completed_race_points(self): return self._completed_race_points
 
     @property
     def total_pole_positions(self): return self._total_pole_positions
@@ -271,10 +237,13 @@ class Driver:
     def total_laps_complete(self): return self._total_laps_complete
 
     @property
-    def total_laps_lead(self): return self._total_laps_lead
+    def total_completed_races(self): return self._total_completed_races
 
     @property
-    def laps_lead_points(self): return self._laps_lead_points
+    def total_lead_a_lap(self): return self._total_lead_a_lap
+
+    @property
+    def lead_a_lap_points(self): return self._lead_a_lap_points
 
     @property
     def total_most_laps_lead(self): return self._total_most_laps_lead
@@ -294,13 +263,13 @@ class Driver:
     @property
     def sigma(self): return self._sigma
 
-    def set_car_number(self, car_number: int, group: Group):
+    def set_car_number(self, car_number: int, group: str):
         if self._car_number is None:
             self._car_number = car_number
             self._group = group
             return
         if self._car_number != car_number:
-            _ams_logger.info("Updating car number from "+str(self.car_number)+" to "+str(car_number))
+            _logger.info("Updating car number from "+str(self.car_number)+" to "+str(car_number))
             self._car_number = car_number
             self._group = group
 
@@ -316,9 +285,9 @@ class GroupStats:
                  "_fastest_lap_time",
                  "_most_laps_lead_driver",
                  "_most_laps_lead",
-                 "laps_lead_drivers"]
+                 "lead_a_lap_drivers"]
 
-    def __init__(self, group: Group):
+    def __init__(self, group: str):
         self._group = group
         self._num_drivers = 0
         self._pole_position_driver = None
@@ -329,7 +298,7 @@ class GroupStats:
         self._fastest_lap_time = 10000000
         self._most_laps_lead_driver = None
         self._most_laps_lead = 0
-        self.laps_lead_drivers = []
+        self.lead_a_lap_drivers = []
 
     def check_if_fastest_lap(self, cust_id: int, time_s: float):
         if 0 < time_s < self._fastest_lap_time:
@@ -405,7 +374,7 @@ class Race:
     @property
     def track(self): return self._track
 
-    def get_stats(self, group: Group):
+    def get_stats(self, group: str):
         if group not in self.stats:
             self.stats[group] = GroupStats(group)
         return self.stats[group]
@@ -432,13 +401,15 @@ class Result:
                  "_points",
                  "_handicap_points",
                  "_clean_driver_points",
+                 "_completed_race_points",
                  "_interval",
                  "_incidents",
                  "_laps_completed",
                  "_laps_lead",
                  "_most_laps_lead",
                  "_fastest_lap_time",
-                 "_mu", "_sigma"]
+                 "_mu", "_sigma",
+                 "lap_positions"]
 
     def __init__(self, cust_id: int):
         self._cust_id = cust_id
@@ -450,6 +421,7 @@ class Result:
         self._points = None
         self._handicap_points = None
         self._clean_driver_points = None
+        self._completed_race_points = None
         self._incidents = None
         self._laps_completed = None
         self._laps_lead = None
@@ -457,6 +429,7 @@ class Result:
         self._fastest_lap_time = None
         self._mu = 0
         self._sigma = 0
+        self.lap_positions = []
 
     @property
     def cust_id(self): return self._cust_id
@@ -486,6 +459,9 @@ class Result:
     def clean_driver_points(self): return self._clean_driver_points
 
     @property
+    def completed_race_points(self): return self._completed_race_points
+
+    @property
     def incidents(self): return self._incidents
 
     @property
@@ -508,13 +484,14 @@ class Result:
 
 
 class Event:
-    __slots__ = ["_name", "_is_multiclass", "_num_splits", "_results"]
+    __slots__ = ["_name", "_is_multiclass", "_num_splits", "_results", "team_owners"]
 
     def __init__(self, name: str):
         self._name = name
         self._num_splits = 0
         self._is_multiclass = None
         self._results = OrderedDict()
+        self.team_owners = {}
 
     def as_dict(self):
         string = serialize_event_to_string(self, SerializationFormat.JSON)
@@ -537,13 +514,21 @@ class Event:
     def add_result(self, split: int, sof: int, url: str):
         if split in self._results:
             # Two splits with the exact same sof!?!
-            _ams_logger.error(f"There is already results for split {split}")
+            _logger.error(f"There is already results for split {split}")
         result = EventResult(sof, url)
         self._results[split] = result
         return result
 
     def get_result(self, split: int):
         return self._results[split]
+
+    def get_team_results(self, team_id: int):
+        results = {}
+        for split, result in self._results.items():
+            result = result.get_team(team_id)
+            if result:
+                results[split] = result
+        return results
 
     def get_driver_team_results(self, cust_id: int):
         teams = {}
@@ -576,6 +561,11 @@ class EventResult:
         team = EventTeam(team_id, category, name, car)
         self._teams[team_id] = team
         return team
+
+    def get_team(self, team_id: str):
+        if team_id in self._teams:
+            return self._teams[team_id]
+        return None
 
     def get_driver_teams(self, cust_id: int):
         teams = []
@@ -614,13 +604,14 @@ class EventResult:
 
 
 class EventTeam:
-    __slots__ = ["_team_id", "_category", "_name", "_car", "_reason_out",
+    __slots__ = ["_team_id", "_owner", "_category", "_name", "_car", "_reason_out",
                  "_finish_position", "_finish_position_in_class",
                  "_total_laps_complete", "_total_incidents",
                  "_drivers", "_members"]
 
     def __init__(self, team_id: str, category: str, name: str, car: str):
         self._team_id = team_id
+        self._owner = None
         self._category = category
         self._name = name
         self._car = car
@@ -637,8 +628,11 @@ class EventTeam:
         if cust_id not in self._drivers:
             self._drivers[cust_id] = Driver(cust_id, name)
         else:
-            _ams_logger.warning(f"Driver {cust_id} already exists.")
+            _logger.warning(f"Driver {cust_id} already exists.")
         return self._drivers[cust_id]
+
+    def set_owner(self, cust_id: int):
+        self._owner = cust_id
 
     def add_member(self, cust_id: int, name: str) -> None:
         if cust_id not in self._members:
@@ -651,6 +645,12 @@ class EventTeam:
 
     @property
     def name(self): return self._name
+
+    @property
+    def owner(self): return self._owner
+
+    @property
+    def id(self): return self._team_id
 
     @property
     def num_drivers(self): return len(self._drivers)
@@ -677,8 +677,20 @@ class EventTeam:
     def total_laps_complete(self): return self._total_laps_complete
 
 
-def serialize_league_to_string(src: League, fmt: SerializationFormat) -> str:
-    dst = LeagueData()
+def serialize_to_string(message, fmt: SerializationFormat):
+    if fmt == SerializationFormat.JSON or fmt == SerializationFormat.VERBOSE_JSON:
+        verbose = True if fmt == SerializationFormat.VERBOSE_JSON else False
+        return json_format.MessageToJson(message=message,
+                                         preserving_proto_field_name=True,
+                                         always_print_fields_with_no_presence=verbose)
+    elif fmt == SerializationFormat.TEXT:
+        return text_format.MessageToString(message)
+    else:
+        return message.SerializeToString()
+
+
+def serialize_league_result_to_string(src: LeagueResult, fmt: SerializationFormat) -> str:
+    dst = LeagueResultData()
 
     for cust_id, member in src.members.items():
         member_data = dst.Members[cust_id]
@@ -686,175 +698,170 @@ def serialize_league_to_string(src: League, fmt: SerializationFormat) -> str:
         if member.nickname is not None:
             member_data.Nickname = member.nickname
 
-    for season_number, season in src.seasons.items():
-        season_data = dst.Seasons[season_number]
+    for cust_id, driver in src.drivers.items():
+        driver_data = dst.Drivers[cust_id]
+        driver_data.Name = driver.name
+        driver_data.OldRating = driver.old_irating
+        driver_data.NewRating = driver.new_irating
+        driver_data.CarNumber = driver.car_number
+        driver_data.Group = driver.group
+        driver_data.TotalRaceStarts = driver.total_race_starts
+        # Points
+        driver_data.EarnedPoints = driver.earned_points
+        driver_data.DropPoints = driver.drop_points
+        driver_data.HandicapPoints = driver.handicap_points
+        driver_data.CleanDriverPoints = driver.clean_driver_points
+        driver_data.CompletedRacesPoints = driver.completed_race_points
+        # Pole Position
+        driver_data.TotalPolePositions = driver.total_pole_positions
+        driver_data.PolePositionPoints = driver.pole_position_points
+        # Finishings
+        driver_data.TotalWins = driver.total_wins
+        driver_data.AverageFinish = driver.average_finish
+        driver_data.RaceFinishPoints = driver.race_finish_points
+        driver_data.TotalIncidents = driver.total_incidents
+        driver_data.TotalLapsComplete = driver.total_laps_complete
+        driver_data.TotalCompletedRaces = driver.total_completed_races
+        # Laps Lead
+        driver_data.TotalLeadALap = driver.total_lead_a_lap
+        driver_data.LeadALapPoints = driver.lead_a_lap_points
+        driver_data.TotalMostLapsLead = driver.total_most_laps_lead
+        driver_data.MostLapsLeadPoints = driver.most_laps_lead_points
+        # Fast Laps
+        driver_data.TotalFastestLaps = driver.total_fastest_laps
+        driver_data.FastestLapPoints = driver.fastest_lap_points
+        # Trueskill
+        driver_data.Mu = driver.mu
+        driver_data.Sigma = driver.sigma
 
-        for cust_id, driver in season.drivers.items():
-            driver_data = season_data.Drivers[cust_id]
-            driver_data.Name = driver.name
-            driver_data.OldRating = driver.old_irating
-            driver_data.NewRating = driver.new_irating
-            driver_data.CarNumber = driver.car_number
-            driver_data.Group = driver.group.value
-            driver_data.TotalRaces = driver.total_races
-            # Points
-            driver_data.EarnedPoints = driver.earned_points
-            driver_data.HandicapPoints = driver.handicap_points
-            driver_data.DropPoints = driver.drop_points
-            driver_data.CleanDriverPoints = driver.clean_driver_points
-            # Pole Position
-            driver_data.TotalPolePositions = driver.total_pole_positions
-            driver_data.PolePositionPoints = driver.pole_position_points
-            # Finishings
-            driver_data.TotalWins = driver.total_wins
-            driver_data.AverageFinish = driver.average_finish
-            driver_data.TotalFastestLaps = driver.total_fastest_laps
-            driver_data.RaceFinishPoints = driver.race_finish_points
-            driver_data.TotalIncidents = driver.total_incidents
-            driver_data.TotalLapsComplete = driver.total_laps_complete
-            # Laps Lead
-            driver_data.TotalLapsLead = driver.total_laps_lead
-            driver_data.LapsLeadPoints = driver.laps_lead_points
-            driver_data.TotalMostLapsLead = driver.total_most_laps_lead
-            driver_data.MostLapsLeadPoints = driver.most_laps_lead_points
-            # Fast Laps
-            driver_data.TotalFastestLaps = driver.total_fastest_laps
-            driver_data.FastestLapPoints = driver.fastest_lap_points
-            # Trueskill
-            driver_data.Mu = driver.mu
-            driver_data.Sigma = driver.sigma
+    for race_number, race in src.races.items():
+        race_data = dst.Races[race_number]
+        race_data.Date = race.date
+        race_data.Track = race.track
 
-        for race_number, race in season.races.items():
-            race_data = season_data.Races[race_number]
-            race_data.Date = race.date
-            race_data.Track = race.track
+        for group, stats in race.stats.items():
+            stats_data = race_data.GroupStats[group]
+            stats_data.Count = stats.num_drivers
+            stats_data.PolePositionDriver = stats.pole_position_driver
+            stats_data.PolePosition = stats.pole_position
+            stats_data.WinningPosition = stats.winning_position
+            stats_data.WinningDriver = stats.winning_driver
+            stats_data.FastestLapDriver = stats.fastest_lap_driver
+            stats_data.FastestLapTime = stats.fastest_lap_time
+            if stats.most_laps_lead_driver is not None:
+                stats_data.MostLapsLeadDriver = stats.most_laps_lead_driver
+                stats_data.MostLapsLead = stats.most_laps_lead
+                for cust_id in stats.lead_a_lap_drivers:
+                    stats_data.LapsLeadDrivers.append(cust_id)
 
-            for group, stats in race.stats.items():
-                stats_data = GroupStatsData()
-                stats_data.Group = stats.group.value
-                stats_data.Count = stats.num_drivers
-                stats_data.PolePositionDriver = stats.pole_position_driver
-                stats_data.PolePosition = stats.pole_position
-                stats_data.WinningPosition = stats.winning_position
-                stats_data.WinningDriver = stats.winning_driver
-                stats_data.FastestLapDriver = stats.fastest_lap_driver
-                stats_data.FastestLapTime = stats.fastest_lap_time
-                if stats.most_laps_lead_driver is not None:
-                    stats_data.MostLapsLeadDriver = stats.most_laps_lead_driver
-                    stats_data.MostLapsLead = stats.most_laps_lead
-                    for cust_id in stats.laps_lead_drivers:
-                        stats_data.NumLapsLeadDrivers.append(cust_id)
-                race_data.GroupStats.append(stats_data)
+        for cust_id, result in race.grid.items():
+            results_data = race_data.Grid[cust_id]
+            results_data.PolePosition = result.pole_position
+            results_data.FastestLap = result.fastest_lap
+            results_data.StartPosition = result.start_position
+            results_data.FinishPosition = result.finish_position
+            results_data.Points = result.points
+            results_data.HandicapPoints = result.handicap_points
+            results_data.CleanDriverPoints = result.clean_driver_points
+            results_data.CompletedRacePoints = result.completed_race_points
+            results_data.Interval = result.interval
+            results_data.Incidents = result.incidents
+            results_data.LapsCompleted = result.laps_completed
+            results_data.LapsLead = result.laps_lead
+            results_data.MostLapsLead = result.most_laps_lead
+            results_data.FastestLapTime = result.fastest_lap_time
+            results_data.Mu = result.mu
+            results_data.Sigma = result.sigma
 
-            for cust_id, result in race.grid.items():
-                results_data = race_data.Grid[cust_id]
-                results_data.PolePosition = result.pole_position
-                results_data.FastestLap = result.fastest_lap
-                results_data.StartPosition = result.start_position
-                results_data.FinishPosition = result.finish_position
-                results_data.Points = result.points
-                results_data.CleanDriverPoints = result.clean_driver_points
-                results_data.HandicapPoints = result.handicap_points
-                results_data.Interval = result.interval
-                results_data.Incidents = result.incidents
-                results_data.LapsCompleted = result.laps_completed
-                results_data.LapsLead = result.laps_lead
-                results_data.MostLapsLead = result.most_laps_lead
-                results_data.FastestLapTime = result.fastest_lap_time
-                results_data.Mu = result.mu
-                results_data.Sigma = result.sigma
-
-    return json_format.MessageToJson(dst, True, True)
+    return serialize_to_string(dst, fmt)
 
 
-def serialize_league_from_string(src: str, fmt: SerializationFormat) -> League:
-    league_data = LeagueData()
+def serialize_league_result_from_string(src: str, fmt: SerializationFormat) -> LeagueResult:
+    league_result_data = LeagueResultData()
     if fmt == SerializationFormat.JSON or fmt == SerializationFormat.VERBOSE_JSON:
-        json_format.Parse(src, league_data)
+        json_format.Parse(src, league_result_data)
     elif fmt == SerializationFormat.TEXT:
-        text_format.Parse(src, league_data)
+        text_format.Parse(src, league_result_data)
     else:
-        league_data.ParseFromString(src)
-    dst = League()
-    serialize_league_data_from_bind(league_data, dst)
+        league_result_data.ParseFromString(src)
+    dst = LeagueResult()
+    serialize_league_result_data_from_bind(league_result_data, dst)
     return dst
 
 
-def serialize_league_data_from_bind(src: LeagueData, dst: League):
+def serialize_league_result_data_from_bind(src: LeagueResultData, dst: LeagueResult):
     for cust_id, member_data in src.Members.items():
         dst.add_member(cust_id, member_data.Name, member_data.Nickname)
 
-    for season_num, season_data in src.Seasons.items():
-        season = dst.add_season(season_num)
-        for cust_id, driver_data in season_data.Drivers.items():
-            driver = season.add_driver(cust_id)
-            driver._name = driver_data.Name
-            driver._old_irating = driver.OldRating
-            driver._new_irating = driver.NewRating
-            driver._group = Group(driver_data.Group)
-            driver._car_number = driver_data.CarNumber
-            driver._total_races = driver_data.TotalRaces
-            # Points
-            driver._earned_points = driver_data.EarnedPoints
-            driver._drop_points = driver_data.DropPoints
-            driver._handicap_points = driver_data.HandicapPoints
-            driver._clean_driver_points = driver_data.CleanDriverPoints
-            # Pole Position
-            driver._total_pole_positions = driver_data.TotalPolePositions
-            driver._pole_position_points = driver_data.PolePositionPoints
-            # Finishings
-            driver._total_wins = driver_data.TotalWins
-            driver._average_finish = driver_data.AverageFinish
-            driver._race_finish_points = driver_data.RaceFinishPoints
-            driver._total_incidents = driver_data.TotalIncidents
-            driver._total_laps_complete = driver_data.TotalLapsComplete
-            # Laps Lead
-            driver._total_laps_lead = driver_data.TotalLapsLead
-            driver._laps_lead_points = driver_data.LapsLeadPoints
-            driver._total_most_laps_lead = driver_data.TotalMostLapsLead
-            driver._most_laps_lead_points = driver_data.MostLapsLeadPoints
-            # Fast Laps
-            driver._total_fastest_laps = driver_data.TotalFastestLaps
-            driver._fastest_lap_points = driver_data.FastestLapPoints
-            # Trueskill
-            driver._mu = driver_data.Mu
-            driver._sigma = driver_data.Sigma
+    for cust_id, driver_data in src.Drivers.items():
+        driver = dst.add_driver(cust_id)
+        driver._name = driver_data.Name
+        driver._old_irating = driver.OldRating
+        driver._new_irating = driver.NewRating
+        driver._group = driver_data.Group
+        driver._car_number = driver_data.CarNumber
+        driver._total_races = driver_data.TotalRaces
+        # Points
+        driver._earned_points = driver_data.EarnedPoints
+        driver._drop_points = driver_data.DropPoints
+        driver._handicap_points = driver_data.HandicapPoints
+        driver._clean_driver_points = driver_data.CleanDriverPoints
+        # Pole Position
+        driver._total_pole_positions = driver_data.TotalPolePositions
+        driver._pole_position_points = driver_data.PolePositionPoints
+        # Finishings
+        driver._total_wins = driver_data.TotalWins
+        driver._average_finish = driver_data.AverageFinish
+        driver._race_finish_points = driver_data.RaceFinishPoints
+        driver._total_incidents = driver_data.TotalIncidents
+        driver._total_laps_complete = driver_data.TotalLapsComplete
+        # Laps Lead
+        driver._total_laps_lead = driver_data.TotalLapsLead
+        driver._laps_lead_points = driver_data.LapsLeadPoints
+        driver._total_most_laps_lead = driver_data.TotalMostLapsLead
+        driver._most_laps_lead_points = driver_data.MostLapsLeadPoints
+        # Fast Laps
+        driver._total_fastest_laps = driver_data.TotalFastestLaps
+        driver._fastest_lap_points = driver_data.FastestLapPoints
+        # Trueskill
+        driver._mu = driver_data.Mu
+        driver._sigma = driver_data.Sigma
 
-        for race_num, race_data in season_data.Races.items():
-            race = season.add_race(race_num, race_data.Date, race_data.Track)
+    for race_num, race_data in src.Races.items():
+        race = dst.add_race(race_num, race_data.Date, race_data.Track)
 
-            for group_stats_data in race_data.GroupStats:
-                stats = race.get_stats(group_stats_data.Group)
-                stats._num_drivers = group_stats_data.Count
-                stats._pole_position_driver = group_stats_data.PolePositionDriver
-                stats._pole_position = group_stats_data.PolePosition
-                stats._winning_position = group_stats_data.WinningPosition
-                stats._winning_driver = group_stats_data.WinningDriver
-                stats._fastest_lap_driver = group_stats_data.FastestLapDriver
-                stats._fastest_lap_time = group_stats_data.FastestLapTime
-                stats._most_laps_lead_driver = group_stats_data.MostLapsLeadDriver
-                stats._most_laps_lead = group_stats_data.MostLapsLead
-                for cust_id in group_stats_data.LapsLeadDrivers:
-                    stats.laps_lead_drivers.append(cust_id)
+        for group_stats_data in race_data.GroupStats:
+            stats = race.get_stats(group_stats_data.Group)
+            stats._num_drivers = group_stats_data.Count
+            stats._pole_position_driver = group_stats_data.PolePositionDriver
+            stats._pole_position = group_stats_data.PolePosition
+            stats._winning_position = group_stats_data.WinningPosition
+            stats._winning_driver = group_stats_data.WinningDriver
+            stats._fastest_lap_driver = group_stats_data.FastestLapDriver
+            stats._fastest_lap_time = group_stats_data.FastestLapTime
+            stats._most_laps_lead_driver = group_stats_data.MostLapsLeadDriver
+            stats._most_laps_lead = group_stats_data.MostLapsLead
+            for cust_id in group_stats_data.LapsLeadDrivers:
+                stats.laps_lead_drivers.append(cust_id)
 
-            for cust_id, result_data in race_data.Grid.items():
-                result = race.add_result(cust_id)
-                result._cust_id = cust_id
-                result._pole_position = result_data.PolePosition
-                result._fastest_lap = result_data.FastestLap
-                result._start_position = result_data.StartPosition
-                result._finish_position = result_data.FinishPosition
-                result._points = result_data.Points
-                result._handicap_points = result_data.HandicapPoints
-                result._clean_driver_points = result_data.CleanDriverPoints
-                result._interval = result_data.Interval
-                result._incidents = result_data.Incidents
-                result._laps_completed = result_data.LapsCompleted
-                result._laps_lead = result_data.LapsLead
-                result._most_laps_lead = result_data.MostLapsLead
-                result._fastest_lap_time = result_data.FastestLapTime
-                result._mu = result_data.Mu
-                result._sigma = result_data.Sigma
+        for cust_id, result_data in race_data.Grid.items():
+            result = race.add_result(cust_id)
+            result._cust_id = cust_id
+            result._pole_position = result_data.PolePosition
+            result._fastest_lap = result_data.FastestLap
+            result._start_position = result_data.StartPosition
+            result._finish_position = result_data.FinishPosition
+            result._points = result_data.Points
+            result._handicap_points = result_data.HandicapPoints
+            result._clean_driver_points = result_data.CleanDriverPoints
+            result._interval = result_data.Interval
+            result._incidents = result_data.Incidents
+            result._laps_completed = result_data.LapsCompleted
+            result._laps_lead = result_data.LapsLead
+            result._most_laps_lead = result_data.MostLapsLead
+            result._fastest_lap_time = result_data.FastestLapTime
+            result._mu = result_data.Mu
+            result._sigma = result_data.Sigma
 
 
 def serialize_event_to_string(src: Event, fmt: SerializationFormat) -> str:
@@ -885,6 +892,8 @@ def serialize_event_to_string(src: Event, fmt: SerializationFormat) -> str:
             team_data.FinishPositionInClass = team.finish_position_in_class
             team_data.TotalIncidents = team.total_incidents
             team_data.TotalLapsComplete = team.total_laps_complete
+            if team.owner:
+                team_data.Owner = team.owner
 
             for cust_id, driver in team._drivers.items():
                 driver_data = team_data.Drivers[cust_id]
@@ -899,7 +908,7 @@ def serialize_event_to_string(src: Event, fmt: SerializationFormat) -> str:
                 member_data = team_data.Members[cust_id]
                 member_data.Name = member.name
 
-    return json_format.MessageToJson(dst, True, True)
+    return serialize_to_string(dst, fmt)
 
 
 def serialize_event_from_string(src: str, fmt: SerializationFormat) -> Event:
@@ -936,6 +945,8 @@ def serialize_event_data_from_bind(src: EventData, dst: Event):
             team._finish_position_in_class = team_data.FinishPositionInClass
             team._total_incidents = team_data.TotalIncidents
             team._total_laps_complete = team_data.TotalLapsComplete
+            if team_data.Owner:
+                team._owner = team_data.Owner
 
             for cust_id, driver_data in team_data.Drivers.items():
                 driver = team.add_driver(cust_id, driver_data.Name)
@@ -949,7 +960,7 @@ def serialize_event_data_from_bind(src: EventData, dst: Event):
                 team.add_member(cust_id, member_data.Name)
 
 
-def print_debug_stats(lg: League, cust_id: int):
+def print_debug_stats(lg: LeagueResult, cust_id: int):
     print("Stats for " + lg.get_member(cust_id).nickname)
     for number, race in lg.get_season(5).races.items():
         result = race.get_result(cust_id)
