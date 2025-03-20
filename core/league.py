@@ -136,7 +136,7 @@ class LeagueConfiguration:
                  "time_penalties"
                  ]
 
-    def __init__(self, iracing_id: int, season: int):
+    def __init__(self, iracing_id: int, season: str):
         self._iracing_id = iracing_id
         self._name = None
         self._season = season
@@ -226,6 +226,15 @@ class LeagueConfiguration:
             lg.add_member(ir_member["cust_id"], ir_member["display_name"], ir_member["nick_name"])
         return lg
 
+    @staticmethod
+    def _get_league_number(cust_id, roster):
+        for member in roster:
+            if member["cust_id"] == cust_id:
+                if not member["car_number"]:
+                    return None
+                else:
+                    return int(member["car_number"])
+
     def fetch_and_score_league(self, username: str, password: str, active: bool = True) -> LeagueResult:
         lg = self.fetch_league_members(username, password)
 
@@ -233,25 +242,26 @@ class LeagueConfiguration:
         ir_league_info = idc.league_get(self._iracing_id)  # TODO replace with lg below
         ir_seasons = idc.league_seasons(self._iracing_id, True)["seasons"]
         _logger.info("Found " + str(len(ir_seasons)) + " seasons")
-        for season_num, ir_season in enumerate(ir_seasons):
-            season_num += 1  # We store data in dicts, and it's just more conventional to start at 1
-            if self._season != season_num:
+        for ir_season in ir_seasons:
+            if self._season != ir_season['season_name']:
                 continue
 
-            _logger.info("Pulling season " + str(season_num))
+            _logger.info(f"Pulling season {ir_season['season_name']}")
             # TODO We could pull with results_only False to detect if we are in season or not
             ir_sessions = idc.league_season_sessions(self._iracing_id, ir_season["season_id"], False)["sessions"]
-            _logger.info("There are " + str(len(ir_sessions)) + " sessions in season " + str(season_num))
+            _logger.info("There are " + str(len(ir_sessions)) + " sessions in season ")
 
             completed_races = 0
             race_num = 0
             race_session_num = 0
             for session_num, ir_session in enumerate(ir_sessions):
                 track_name = ir_session["track"]["track_name"]
+
                 # Check if this is a practice only session
                 if ir_session["qualify_laps"] == 0 and ir_session["qualify_length"] == 0:
                     _logger.info("Session " + str(session_num) + " at " + track_name + " was a practice session.")
                     continue
+
                 # Check if this race event was a practice race
                 race_session_num += 1
                 if race_session_num in self.practice_sessions:
@@ -262,11 +272,13 @@ class LeagueConfiguration:
                 #  This is an actual race we are going to score
                 race_num += 1
                 _logger.info("Session " + str(session_num) + " at " + track_name + " is race " + str(race_num))
+
                 # Sessions are in UTC time, convert to local
                 utc = datetime.strptime(ir_session["launch_at"], '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=tz.tzutc())
                 race = lg.add_race(race_num,
                                    str(utc.astimezone(tz.gettz('America/New_York'))).split(' ')[0],
                                    ir_session["track"]["track_name"])
+
                 # Check to see if its run yet
                 if "subsession_id" not in ir_session:
                     _logger.info("\tRace " + str(race_num) + " at " + track_name + " has not run yet.")
@@ -284,6 +296,7 @@ class LeagueConfiguration:
                 completed_races += 1
                 ir_car_results = ir_race_results["results"]
                 ir_total_laps = ir_car_results[0]["laps_complete"]
+
                 # Figure out the class leader for every lap
                 group_lap_leaders = {}
                 for group in self.group_rules.keys():
@@ -298,7 +311,11 @@ class LeagueConfiguration:
                         continue
                     cust_id = lap["cust_id"]
                     position = lap["lap_position"]
-                    group = self.get_group(int(lap["car_number"]))
+                    car_number = self._get_league_number(lap["cust_id"], ir_league_info["roster"])
+                    if car_number is None:
+                        # Must be brand spanking new
+                        car_number = int(lap["car_number"])
+                    group = self.get_group(car_number)
                     leader = group_lap_leaders[group][lap_number]
                     if position < leader["position"]:
                         leader["position"] = position
@@ -333,15 +350,11 @@ class LeagueConfiguration:
                         driver._name = member.name
                         # We only want to use the league number, if this season is an active season
                         if active:
-                            for lg_member in ir_league_info["roster"]:
-                                if lg_member["cust_id"] == cust_id:
-                                    if not lg_member["car_number"]:
-                                        # Must be brand spanking new
-                                        driver_car_number = int(ir_car_result["livery"]["car_number"])
-                                    else:
-                                        driver_car_number = int(lg_member["car_number"])
-                                    driver.set_car_number(driver_car_number, self.get_group(driver_car_number))
+                            driver_car_number = self._get_league_number(cust_id, ir_league_info["roster"])
+                            if driver_car_number is not None:
+                                driver.set_car_number(driver_car_number, self.get_group(driver_car_number))
                     if driver.car_number is None:
+                        # Must be brand spanking new
                         driver_car_number = int(ir_car_result["livery"]["car_number"])
                         driver.set_car_number(driver_car_number, self.get_group(driver_car_number))
 

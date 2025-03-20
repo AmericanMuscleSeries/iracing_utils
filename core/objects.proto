@@ -91,7 +91,7 @@ message LeagueConfigurationData
 {
   int32                    iRacingID        = 1;
   string                   Name             = 2;
-  int32                    Season           = 3;
+  string                   Season           = 3;
   AnyScoringSystemData     ScoringSystem    = 4;
   repeated int32           NonDrivers       = 5;
   repeated int32           PracticeSessions = 6;

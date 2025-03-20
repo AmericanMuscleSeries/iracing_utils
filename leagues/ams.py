@@ -81,7 +81,7 @@ def get_season_8_cfg() -> list[LeagueConfiguration]:
     cfgs = []
     scoring = None
     for i in range(2):
-        cfg = LeagueConfiguration(iracing_id=__league_id, season=8)
+        cfg = LeagueConfiguration(iracing_id=__league_id, season="Season 8")
         if i == 0:
             scoring = cfg.set_linear_decent_scoring(40, hcp=False)
             cfg.add_group_rule("All Drivers", GroupRules(0, 299, 2))

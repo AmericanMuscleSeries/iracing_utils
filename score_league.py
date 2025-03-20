@@ -14,7 +14,7 @@ from core.sheets import GDrive, SheetsDisplay
 _logger = logging.getLogger('log')
 
 
-def score_league(cfgs: list[LeagueConfiguration], sheets_display: SheetsDisplay):
+def score_league(cfgs: list[LeagueConfiguration], sheets_display: SheetsDisplay, active: bool = True):
     logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s', filename="ams.log", filemode="w")
     logging.getLogger('ams').setLevel(logging.INFO)
     logging.getLogger().addHandler(logging.StreamHandler(sys.stdout))
@@ -39,7 +39,7 @@ def score_league(cfgs: list[LeagueConfiguration], sheets_display: SheetsDisplay)
     opts = parser.parse_args()
 
     for cfg in cfgs:
-        league = cfg.fetch_and_score_league(opts.username, opts.password)
+        league = cfg.fetch_and_score_league(opts.username, opts.password, active)
 
         # print_debug_stats(league, 609455)
         # print_debug_stats(league, 120570)
