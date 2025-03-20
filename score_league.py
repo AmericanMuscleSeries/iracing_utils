@@ -53,7 +53,7 @@ def score_league(cfgs: list[LeagueConfiguration], sheets_display: SheetsDisplay)
         # Dump the dict to json
         with open(filename, 'w') as fp:
             json.dump(d, fp, indent=2)
-        report_standings(filename, results_dir / f"{cfg.name} Season {cfg.season} Standings.json")
+        #  report_standings(filename, results_dir / f"{cfg.name} Season {cfg.season} Standings.json")
 
         # Push our results up to our sheets
         if opts.credentials.exists():

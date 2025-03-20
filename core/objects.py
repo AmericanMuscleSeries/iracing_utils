@@ -394,6 +394,7 @@ class Race:
 
 class Result:
     __slots__ = ["_cust_id",
+                 "_met_minimum_distance",
                  "_pole_position",
                  "_fastest_lap",
                  "_start_position",
@@ -413,6 +414,7 @@ class Result:
 
     def __init__(self, cust_id: int):
         self._cust_id = cust_id
+        self._met_minimum_distance = False
         self._pole_position = False
         self._fastest_lap = False
         self._start_position = None
@@ -433,6 +435,9 @@ class Result:
 
     @property
     def cust_id(self): return self._cust_id
+
+    @property
+    def met_minimum_distance(self): return self._met_minimum_distance
 
     @property
     def pole_position(self): return self._pole_position

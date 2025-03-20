@@ -45,14 +45,15 @@ message IncidentPointsData
 
 message ScoringSystemData
 {
-  int32               PolePosition  = 1; // Points received for getting pole position
-  PointsThresholdData FastestLap    = 2; // Points received for getting fastest lap in the race
-  PointsThresholdData LeadALap      = 3; // Points received for leading a lap
-  PointsThresholdData MostLapsLead  = 4; // Points received for leading the most laps
-  PointsThresholdData FinishRace    = 5; // Points received if you finish X% of the race
-  IncidentPointsData  CleanDriver   = 6; // Map of points to get based on your incidents
-  bool                SeparatePool  = 7; // Use the same pool of points per class or not
-  ePositionValue      PositionValue = 8; // How to assign a position value to a league with more than one class
+  float               MinimumRaceDistance = 1; // < 1 is a % of the race, >= 1 is minimum number of laps back
+  int32               PolePosition        = 2; // Points received for getting pole position
+  PointsThresholdData FastestLap          = 3; // Points received for getting fastest lap in the race
+  PointsThresholdData LeadALap            = 4; // Points received for leading a lap
+  PointsThresholdData MostLapsLead        = 5; // Points received for leading the most laps
+  PointsThresholdData FinishRace          = 6; // Points received if you finish X% of the race
+  IncidentPointsData  CleanDriver         = 7; // Map of points to get based on your incidents
+  bool                SeparatePool        = 8; // Use the same pool of points per class or not
+  ePositionValue      PositionValue       = 9; // How to assign a position value to a league with more than one class
 }
 
 // Race winner will get TopScore, each subsequent racer will get 1 less point
@@ -154,23 +155,24 @@ message DriverData
 
 message ResultData
 {
-  bool   PolePosition         = 1;
-  bool   FastestLap           = 2;
-  int32  StartPosition        = 3;
-  int32  FinishPosition       = 4;
-  int32  Points               = 5;
-  int32  HandicapPoints       = 6;
-  int32  CleanDriverPoints    = 7;
-  int32  CompletedRacePoints  = 8;
-  float  Interval             = 9;
-  int32  Incidents            = 10;
-  int32  LapsCompleted        = 11;
-  int32  LapsLead             = 12;
-  bool   MostLapsLead         = 13;
-  float  FastestLapTime       = 14;
-  float  Mu                   = 15; // Trueskill
-  float  Sigma                = 16; // Trueskill
-  repeated int32 LapPositions = 17;
+  bool   MetMinimumDistance   = 1;
+  bool   PolePosition         = 2;
+  bool   FastestLap           = 3;
+  int32  StartPosition        = 4;
+  int32  FinishPosition       = 5;
+  int32  Points               = 6;
+  int32  HandicapPoints       = 7;
+  int32  CleanDriverPoints    = 8;
+  int32  CompletedRacePoints  = 9;
+  float  Interval             = 10;
+  int32  Incidents            = 11;
+  int32  LapsCompleted        = 12;
+  int32  LapsLead             = 13;
+  bool   MostLapsLead         = 14;
+  float  FastestLapTime       = 15;
+  float  Mu                   = 16; // Trueskill
+  float  Sigma                = 17; // Trueskill
+  repeated int32 LapPositions = 18;
 }
 
 message GroupStatsData

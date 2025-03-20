@@ -86,6 +86,7 @@ def get_season_1_cfg() -> list[LeagueConfiguration]:
                                                       56: 16, 57: 15, 58: 14, 59: 13, 60: 12},
                                          separate_pool=False,
                                          position_value=PositionValue.Overall)
+    scoring.minimum_race_distance = 0.5
     scoring.pole_position = 0
     scoring.lead_a_lap.points = 1
     scoring.lead_a_lap.minimum_requirement = 0.9
@@ -102,6 +103,9 @@ def get_season_1_cfg() -> list[LeagueConfiguration]:
     cfg.add_group_rule("S1 Drivers", GroupRules(0, 199, 3))
     cfg.add_group_rule("S2 Drivers", GroupRules(200, 899, 3))
     cfg.add_group_rule("Masters Drivers", GroupRules(900, 999, 3))
+
+    cfg.add_time_penalty(9, 16630, 180)  # Simoes
+
     return [cfg]
 
 

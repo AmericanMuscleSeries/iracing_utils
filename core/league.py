@@ -61,7 +61,8 @@ class IncidentPoints:
 
 
 class ScoringSystem:
-    __slots__ = ["pole_position",
+    __slots__ = ["minimum_race_distance",
+                 "pole_position",
                  "fastest_lap",
                  "lead_a_lap",
                  "most_laps_lead",
@@ -73,6 +74,7 @@ class ScoringSystem:
                  ]
 
     def __init__(self):
+        self.minimum_race_distance = 0
         self.pole_position = 0
         self.fastest_lap = PointsThreshold()
         self.lead_a_lap = PointsThreshold()
@@ -362,26 +364,35 @@ class LeagueConfiguration:
                     result._incidents = ir_car_result["incidents"]
                     result._laps_completed = ir_car_result["laps_complete"]
                     result._laps_lead = 0
-                    if self.scoring_system.lead_a_lap.satisfied(result._laps_completed, ir_total_laps):
-                        result._laps_lead = 0 if cust_id not in laps_lead else laps_lead[cust_id]
                     result._fastest_lap_time = 9999999
-                    if self.scoring_system.fastest_lap.satisfied(result._laps_completed, ir_total_laps):
-                        result._fastest_lap_time = ir_car_result["best_lap_time"]
                     result._clean_driver_points = 0
-                    if self.scoring_system.clean_driver.satisfied(result._laps_completed, ir_total_laps):
-                        if result._incidents in self.scoring_system.clean_driver.point_map:
-                            result._clean_driver_points = self.scoring_system.clean_driver.point_map[result._incidents]
                     result._completed_race_points = 0
-                    if self.scoring_system.finish_race.satisfied(result._laps_completed, ir_total_laps):
-                        result._completed_race_points = self.scoring_system.finish_race.points
+                    result._met_minimum_distance = False
+
+                    if result._laps_completed/ir_total_laps >= self.scoring_system.minimum_race_distance:
                         driver._total_completed_races += 1
+                        result._met_minimum_distance = True
+
+                        if self.scoring_system.lead_a_lap.satisfied(result._laps_completed, ir_total_laps):
+                            result._laps_lead = 0 if cust_id not in laps_lead else laps_lead[cust_id]
+
+                        if self.scoring_system.fastest_lap.satisfied(result._laps_completed, ir_total_laps):
+                            result._fastest_lap_time = ir_car_result["best_lap_time"]
+
+                        if self.scoring_system.clean_driver.satisfied(result._laps_completed, ir_total_laps):
+                            if result._incidents in self.scoring_system.clean_driver.point_map:
+                                result._clean_driver_points = self.scoring_system.clean_driver.point_map[result._incidents]
+
+                        if self.scoring_system.finish_race.satisfied(result._laps_completed, ir_total_laps):
+                            result._completed_race_points = self.scoring_system.finish_race.points
+
+                        if result._laps_lead > 0:
+                            driver._total_lead_a_lap += 1
+                            driver._lead_a_lap_points += self.scoring_system.lead_a_lap.points
 
                     # Increment driver counters
                     driver._total_race_starts += 1
                     driver._total_incidents += result._incidents
-                    if result._laps_lead > 0:
-                        driver._total_lead_a_lap += 1
-                        driver._lead_a_lap_points += self.scoring_system.lead_a_lap.points
                     driver._total_laps_complete += result._laps_completed
                     driver._clean_driver_points += result._clean_driver_points
                     driver._completed_race_points += result._completed_race_points
@@ -432,6 +443,9 @@ class LeagueConfiguration:
                     max_points = self.scoring_system.top_score
                     for rr in race.grid.values():
                         driver = lg.get_driver(rr.cust_id)
+                        if not rr.met_minimum_distance:
+                            rr._points = 0
+                            continue
 
                         if not self.scoring_system.separate_pool:
                             rr._points = max_points - rr._finish_position+1
@@ -458,6 +472,9 @@ class LeagueConfiguration:
                     for rr in race.grid.values():
                         rr._points = 0
                         driver = lg.get_driver(rr.cust_id)
+                        if not rr.met_minimum_distance:
+                            rr._points = 0
+                            continue
 
                         if not self.scoring_system.separate_pool:
                             if rr._finish_position in self.scoring_system.assignments:
@@ -522,13 +539,15 @@ class LeagueConfiguration:
                         exit(1)
                     race_stats = race.get_stats(driver.group)
                     race_stats._num_drivers += 1
+
                     race_stats.check_if_pole_position(result.cust_id, result.start_position)
+                    if not result.met_minimum_distance:
+                        continue  # I think you should still get your pole position point if you don't finish the race
                     race_stats.check_if_fastest_lap(result.cust_id, result.fastest_lap_time)
                     race_stats.check_if_winner(result.cust_id, result.finish_position)
                     race_stats.check_if_most_laps_lead(result.cust_id, result.laps_lead)
                     if result.laps_lead > 0:
                         race_stats.lead_a_lap_drivers.append(result.cust_id)
-
 
                 # Now push those stats back into the results and drivers
                 for grp, stat in race.stats.items():
