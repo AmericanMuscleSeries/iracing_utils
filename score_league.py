@@ -2,7 +2,9 @@
 # See accompanying NOTICE file for details.
 
 import os
+import csv
 import sys
+import copy
 import json
 import logging
 import argparse
@@ -46,14 +48,14 @@ def score_league(cfgs: list[LeagueConfiguration], sheets_display: SheetsDisplay,
 
         results_dir = Path("./results")
         results_dir.mkdir(exist_ok=True)
-        filename = results_dir / f"{cfg.name} Season {cfg.season}.json"
+        filename = results_dir / f"{cfg.name} {cfg.season}.json"
         print(f"Writing league to {filename}")
         # Convert the League class to a python dict
         d = league.as_dict()  # Work with data in a native python format instead of our classes
         # Dump the dict to json
         with open(filename, 'w') as fp:
             json.dump(d, fp, indent=2)
-        #  report_standings(filename, results_dir / f"{cfg.name} Season {cfg.season} Standings.json")
+        broadcast_standings(filename, cfg, league, results_dir)
 
         # Push our results up to our sheets
         if opts.credentials.exists():
@@ -77,31 +79,41 @@ def score_league(cfgs: list[LeagueConfiguration], sheets_display: SheetsDisplay,
             print("Could not find credentials file. Not pushing to sheets.")
 
 
-def report_standings(results_filename: Path, standings_filename: Path):
-    r = open(results_filename)
-    lg = json.load(r)
+def broadcast_standings(results_filename: Path, cfg: LeagueConfiguration, lg: LeagueResult, out_dir: Path):
+
+    headers = [
+        "First name", "Last name", "Suffix", "Multicar team name", "Club name", "iRacing ID", "Car number",
+        "Multicar team background color", "iRacing car color", "iRacing car number color", "iRacing car number color 2",
+        "iRacing car number color 3", "iRacing car number font ID", "iRacing car number style",
+        "Points before weekend", "Points earned", "Bonus points", "Points after weekend"
+    ]
+    data = ["First name", "Last name", "", "", "", "iRacindID", "CarNumber",
+            "Transparent", "Transparent", "Transparent", "Transparent", "Transparent",
+            "0", "0", "0", "0", "0", "points!"]
 
     # Create a sorted 2D array of
     # [ [iRacing-number,points,points-with-drops,clean-points], [...], [...] ]
 
     def pull_class(c: str, lr: LeagueResult):
         class_standings = []
-        for iRid, driver in lr["Drivers"].items():
-            if driver["Group"] != c:
+        for iRid, driver in lr.drivers.items():
+            if driver.group != c:
                 continue
 
-            d = [iRid,
-                 driver["EarnedPoints"],
-                 driver["EarnedPoints"] - driver["DropPoints"],
-                 driver["CleanDriverPoints"]]
+            d = copy.deepcopy(data)
+            d[0] = ""
+            d[1] = driver.name
+            d[5] = iRid
+            d[6] = driver.car_number
+            d[-1] = driver.earned_points
             class_standings.append(d)
-        class_standings.sort(key=lambda x: x[2], reverse=True)
+        class_standings.sort(key=lambda x: x[-1], reverse=True)
+        class_standings.insert(0, headers)
         return class_standings
 
-    standings = {
-            "PRO": pull_class('Pro Drivers', lg),
-            "CH": pull_class('Ch Drivers', lg),
-            "AM": pull_class('Am Drivers', lg)
-    }
-    with open(standings_filename, 'w') as fp:
-        json.dump(standings, fp, indent=2)
+    for group in cfg.group_rules.keys():
+        standings = pull_class(group, lg)
+        filename = out_dir / f"{cfg.name} {cfg.season} {group}.csv"
+        with open(filename, 'w', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerows(standings)

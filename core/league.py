@@ -10,12 +10,10 @@ from datetime import datetime
 from dateutil import tz
 from google.protobuf import json_format, text_format
 from iracingdataapi.client import irDataClient
-from pathlib import Path
 from trueskill import Rating
 
 from core.objects import GroupRules, LeagueResult, PositionValue, SerializationFormat, serialize_to_string
 from core.objects_pb2 import GroupRulesData, LeagueConfigurationData, TimePenaltyData
-from core.sheets import GDrive
 
 _logger = logging.getLogger('log')
 
@@ -136,7 +134,7 @@ class LeagueConfiguration:
                  "time_penalties"
                  ]
 
-    def __init__(self, iracing_id: int, season: str):
+    def __init__(self, iracing_id: int, season: str=""):
         self._iracing_id = iracing_id
         self._name = None
         self._season = season

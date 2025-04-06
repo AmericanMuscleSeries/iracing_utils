@@ -12,7 +12,6 @@ from pathlib import Path
 from iracingdataapi.client import irDataClient
 
 from core.markdown import *
-from core.league import League
 from core.objects import Event
 
 _logger = logging.getLogger('log')
@@ -103,7 +102,7 @@ def pull_event(idc: irDataClient, series_name: str, year: int, log: bool = False
                 driver._new_irating = ir_team_member["newi_rating"]
                 # if irating is < 0, pretty sure that means that car Did Not Start
                 driver._total_laps_complete = ir_team_member["laps_complete"]
-                driver._total_laps_lead = ir_team_member["laps_lead"]
+                driver._total_lead_a_lap = ir_team_member["laps_lead"]
                 driver._total_incidents = ir_team_member["incidents"]
                 if log:
                     team.get_driver()
@@ -147,11 +146,7 @@ def _create_report(basename: Path, data, fields, headings, widths=[]):
     dfi.export(df_styler, img_filename, table_conversion='playwright', dpi=600)
 
 
-def fetch_and_report_league(event: Event, league: League, img_name_postfix: str = ""):
-    fetch_and_report_drivers(event, league.members.keys(), img_name_postfix)
-
-
-def fetch_and_report_drivers(event: Event, drivers: list, img_name_postfix: str = "", output_dir=Path):
+def fetch_and_report_drivers(event: Event, drivers: list, img_name_postfix: str = "", output_dir: Path = "./"):
     # Written to allow a driver to participate in more than 1 team in the same split
     data = []
     if event.is_multiclass:

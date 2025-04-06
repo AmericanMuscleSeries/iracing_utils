@@ -20,7 +20,7 @@ def _evaluate_field(record, field_spec):
         return str(field_spec(record))
 
 
-def table(file, records, fields, headings, alignment = None):
+def table(file, records, fields, headings, alignment =None):
     """
     Generate a Doxygen-flavor Markdown table from records.
 

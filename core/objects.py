@@ -907,7 +907,7 @@ def serialize_event_to_string(src: Event, fmt: SerializationFormat) -> str:
                 driver_data.NewRating = driver.new_irating
                 driver_data.TotalIncidents = driver.total_incidents
                 driver_data.TotalLapsComplete = driver.total_laps_complete
-                driver_data.TotalLapsLead = driver.total_laps_lead
+                driver_data.TotalLeadALap = driver.total_lead_a_lap
 
             for cust_id, member in team._members.items():
                 member_data = team_data.Members[cust_id]

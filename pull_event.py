@@ -68,8 +68,8 @@ def main():
     events = [
         # load_event(idc, "Roar Before the 24", year),
         # load_event(idc, "Daytona 24", year),
-        load_event(idc, "Bathurst 12 Hour", year),
-        # load_event(idc, "12 Hours of Sebring", year),
+        # load_event(idc, "Bathurst 12 Hour", year),
+        load_event(idc, "12 Hours of Sebring", year),
         # load_event(idc, "Road America 500", year),
         # load_event(idc, "24 Hours of Nurburgring", year),
         # load_event(idc, "iRacing.com Indy 500", year),
@@ -86,18 +86,18 @@ def main():
     for event in events:
         report_owner_events(idc, owner_id=180474, event=event, output_dir=output_dir)
 
-    cfg = LeagueConfiguration(6810)
-    lg = cfg.fetch_league(opts.username, opts.password)
-
-    # Discord registration
+    # AMS Drivers
+    # Various Discord user lists
     ams = set()
     for s in ["07", "08"]:
-        users = Path(f"./users_{s}.json")
+        users = Path(f"./users/ams_users_{s}.json")
         if users.exists():
             r = open(users)
             d = json.load(r)
             for key, driver in d.items():
                 ams.add(int(driver["iracing_id"]))
+    cfg = LeagueConfiguration(6810)
+    lg = cfg.fetch_league_members(opts.username, opts.password)
     for lgKey in lg.members.keys():
         ams.add(lgKey)
 
