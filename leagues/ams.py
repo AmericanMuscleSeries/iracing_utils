@@ -126,9 +126,11 @@ def get_season_8_cfg() -> list[LeagueConfiguration]:
         cfg.add_practice_sessions([1, 2])
 
         # Apply Penalties
-        cfg.add_time_penalty(5, 417105, 20)  # Hosea
-        cfg.add_time_penalty(5, 920078, 10)  # Weaver
-        cfg.add_time_penalty(5, 71668, 5)    # Buchholz
+        cfg.add_time_penalty(5, 417105, 20)   # Hosea
+        cfg.add_time_penalty(5, 920078, 10)   # Weaver
+        cfg.add_time_penalty(5, 71668, 5)     # Buchholz
+        cfg.add_time_penalty(10, 88930, 5)    # Kemp
+        cfg.add_time_penalty(11, 511982, 20)  # Cicchetti
         cfgs.append(cfg)
 
     return cfgs
