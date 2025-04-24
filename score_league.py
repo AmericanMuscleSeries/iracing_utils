@@ -1,13 +1,14 @@
 # Distributed under the Apache License, Version 2.0.
 # See accompanying NOTICE file for details.
 
-import os
-import csv
-import sys
+import argparse
 import copy
+import csv
 import json
 import logging
-import argparse
+import os
+import re
+import sys
 from pathlib import Path
 
 from core.league import LeagueConfiguration, LeagueResult
@@ -89,10 +90,7 @@ def broadcast_standings(results_filename: Path, cfg: LeagueConfiguration, lg: Le
     ]
     data = ["First name", "Last name", "", "", "", "iRacindID", "CarNumber",
             "Transparent", "Transparent", "Transparent", "Transparent", "Transparent",
-            "0", "0", "0", "0", "0", "points!"]
-
-    # Create a sorted 2D array of
-    # [ [iRacing-number,points,points-with-drops,clean-points], [...], [...] ]
+            "0", "0", "0", "0", "0", "0"]
 
     def pull_class(c: str, lr: LeagueResult):
         class_standings = []
@@ -100,12 +98,17 @@ def broadcast_standings(results_filename: Path, cfg: LeagueConfiguration, lg: Le
             if driver.group != c:
                 continue
 
+            # Split name, and remove numbers
+            clean_name = re.sub(r"\d+", "", driver.name)
+            names = clean_name.split(" ")
+
             d = copy.deepcopy(data)
-            d[0] = ""
-            d[1] = driver.name
+            d[0] = names[0]
+            d[1] = names[-1]
             d[5] = iRid
             d[6] = driver.car_number
-            d[-1] = driver.earned_points
+            d[14] = driver.earned_points
+            d[17] = driver.earned_points
             class_standings.append(d)
         class_standings.sort(key=lambda x: x[-1], reverse=True)
         class_standings.insert(0, headers)
