@@ -28,6 +28,7 @@ def main():
     cfgs = []
     lt = LeagueType.SRF
 
+    s = []
     if lt == LeagueType.FF or lt == LeagueType.WW:
         # s = ["2025 S1 FF Weekend Warriors", "1YsYm0TRjSjIR1r0EBxUCKq6yyRBgpHFe8F1dXhQAv0k"]
         s = ["2025 S2", "121Fx4vKQ2t5Urdzueq5LWqdhv_ksKIt0S4b9_wTlw2s"]
@@ -96,6 +97,7 @@ class RaySheets(SheetsDisplay):
         row.append(driver.car_number)
         row.append(driver.earned_points)
         row.append(driver.earned_points - driver.drop_points)
+        row.append(driver.total_completed_races)
 
         row.append(driver.total_incidents)
         row.append(driver.total_wins)
