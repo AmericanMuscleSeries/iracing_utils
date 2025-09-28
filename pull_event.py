@@ -5,17 +5,18 @@ import sys
 import json
 import logging
 import argparse
+import pandas as pd
 from pathlib import Path
 from iracingdataapi.client import irDataClient
 
-from core.event import pull_event, fetch_and_report_drivers, list_events, report_owner_events
+from core.event import pull_event, fetch_and_report_drivers, list_events, report_owner_events, report_splits
 from core.league import LeagueConfiguration
 from core.objects import Event
 
 _logger = logging.getLogger('log')
 
 
-def load_event(idc: irDataClient, series_name: str, year: int) -> Event:
+def load_event(idc: irDataClient, series_name: str, year: int, detailed_team=False) -> Event:
     fp = Path(f"./events/{series_name}.json")
     if fp.exists():
         _logger.info(f"Reading event file for : {series_name}")
@@ -23,7 +24,7 @@ def load_event(idc: irDataClient, series_name: str, year: int) -> Event:
         d = json.load(r)
         event = Event.from_dict(d)
     else:
-        event = pull_event(idc, series_name, year, False)
+        event = pull_event(idc, series_name, year, detailed_team=detailed_team)
         if event is None:
             raise Exception(f"Could not find the event: {series_name}")
         _logger.info(f"Writing event file for : {series_name}")
@@ -64,27 +65,28 @@ def main():
     output_dir.mkdir(exist_ok=True)
 
     year = 2025
+    detailed_team = True
     list_events(idc, year)
     events = [
-        # load_event(idc, "Roar Before the 24", year),
-        # load_event(idc, "Daytona 24", year),
-        # load_event(idc, "Bathurst 12 Hour", year),
-        load_event(idc, "12 Hours of Sebring", year),
-        # load_event(idc, "Road America 500", year),
-        # load_event(idc, "24 Hours of Nurburgring", year),
-        # load_event(idc, "iRacing.com Indy 500", year),
-        # load_event(idc, "6 Hours of the Glen", year),
-        # load_event(idc, "24 Hours of Spa", year),
-        # load_event(idc, "iRacing MX-500 - Fixed", year),
-        # load_event(idc, "Indy 6 Hour", year),
-        # load_event(idc, "Petit Le Mans", year),
-        # load_event(idc, "Fuji 8 Hour", year),
-        # load_event(idc, "SCCA Runoffs - Spec Racer Ford", year),
-        # load_event(idc, "THE Production Car Challenge", year),
+        # load_event(idc, "Roar Before the 24", year, detailed_team),
+        # load_event(idc, "Daytona 24", year, detailed_team),
+        # load_event(idc, "Bathurst 12 Hour", year, detailed_team),
+        # load_event(idc, "12 Hours of Sebring", year, detailed_team),
+        # load_event(idc, "Road America 500", year, detailed_team),
+        # load_event(idc, "iRacing.com Indy 500 - Fixed", year, detailed_team),
+        # load_event(idc, "iRacing.com Indy 500", year, detailed_team),
+        # load_event(idc, "4 Hours at Thruxton", year, detailed_team),
+        # load_event(idc, "24 Hours of Nurburgring", year, detailed_team),
+        # load_event(idc, "6 Hours of the Glen", year, detailed_team),
+        # load_event(idc, "24 Hours of Spa", year, detailed_team),
+        # load_event(idc, "Portimao 1000km", year, detailed_team),
+        load_event(idc, "Indy 6 Hour", year, detailed_team),
+        # load_event(idc, "iRacing MX-500 - Fixed", year, detailed_team),
+        # load_event(idc, "Petit Le Mans", year, detailed_team),
+        # load_event(idc, "Fuji 8 Hour", year, detailed_team),
+        # load_event(idc, "SCCA Runoffs - Spec Racer Ford", year, detailed_team),
+        # load_event(idc, "THE Production Car Challenge", year, detailed_team),
     ]
-
-    for event in events:
-        report_owner_events(idc, owner_id=180474, event=event, output_dir=output_dir)
 
     # AMS Drivers
     # Various Discord user lists
@@ -102,6 +104,10 @@ def main():
         ams.add(lgKey)
 
     for event in events:
+        # Make a table of the splits and their SOF
+        report_splits(idc, event=event, output_dir=output_dir)
+        report_owner_events(idc, owner_id=180474, event=event, output_dir=output_dir)
+
         fetch_and_report_drivers(event, list(ams), "-AMS", output_dir=output_dir)
 
         # Make lists of notable iracers to report on

@@ -12,7 +12,7 @@ from pathlib import Path
 from iracingdataapi.client import irDataClient
 
 from core.markdown import *
-from core.objects import Event
+from core.objects import Event, EventTeam
 
 _logger = logging.getLogger('log')
 
@@ -28,7 +28,7 @@ def list_events(idc: irDataClient, year: int):
                 print(f"\t{season['season_name']}")
 
 
-def pull_event(idc: irDataClient, series_name: str, year: int, log: bool = False) -> Event:
+def pull_event(idc: irDataClient, series_name: str, year: int, detailed_team: bool = False, log: bool = False) -> Event:
     ir_series_stats = idc.series_stats()
     event_season = None
     for ir_series in ir_series_stats:
@@ -65,7 +65,6 @@ def pull_event(idc: irDataClient, series_name: str, year: int, log: bool = False
     _logger.info("There were " + str(event.num_splits) + " splits.")
 
     split = 0
-    pull_team_roster = True
 
     for sof, ir_result, ir_race_results in splits:
         split += 1
@@ -108,7 +107,7 @@ def pull_event(idc: irDataClient, series_name: str, year: int, log: bool = False
                     team.get_driver()
                     _logger.info(f"\t\t{driver.name} : {driver.cust_id}")
 
-            if "driver_results" in ir_team_result and pull_team_roster:
+            if detailed_team and "driver_results" in ir_team_result:
                 # If they crash and quit before all scheduled drivers drove a lap,
                 # They will not be in the driver list
                 # So we also pull the official team member list, which can be very long...
@@ -143,7 +142,62 @@ def _create_report(basename: Path, data, fields, headings, widths=[]):
     ], overwrite=False)
     img_filename = str(basename) + ".png"
     _logger.info(f"Writing {img_filename}")
-    dfi.export(df_styler, img_filename, table_conversion='playwright', dpi=600)
+    dfi.export(df_styler, img_filename, table_conversion='playwright', dpi=300, max_rows=200)
+
+
+def report_splits(idc: irDataClient, event: Event, output_dir: Path = "./"):
+    data = []
+    owners = {}
+    headings = [f"Split / {event.num_splits}",
+                "SOF",
+                "Classes",
+                "Class Strength",
+                "Class Count",
+                "Class Laps",
+                "Podium<br> team (# drivers) [owner]"
+                ]
+    # Map the indexes in data for each heading
+    fields = [0, 1, 2, 3, 4, 5, 6]
+
+    def get_team_description(team: EventTeam):
+        #if team.owner not in owners:
+        #    owner = idc.member_profile(team.owner)
+        #    owners[team.owner] = owner['member_info']['display_name']
+        return f"{team.name} ({team.num_drivers})"# [{owners[team.owner]}]"
+
+    _logger.info(f"There were {event.num_splits} splits in this event")
+    for num in range(event.num_splits):
+        r = event.get_result(num+1)
+        _logger.info(f"Pulling Split {num+1}")
+
+        e_cat = ""
+        e_soc = ""
+        e_count = ""
+        e_laps = ""
+        e_podium = ""
+        for c in r.get_categories():
+            e_cat += f"{c}<br>"
+            soc = r.strength_of_category(c)
+            e_soc += f"{soc}<br>"
+            count = r.num_cars(c)
+            e_count += f"{count}<br>"
+            laps = r.num_laps(c)
+            e_laps += f"{laps}<br>"
+            order = r.get_finish_order(c)
+            p1 = get_team_description(order[1])
+            p2 = get_team_description(order[2])
+            p3 = get_team_description(order[3])
+            e_podium += f"{p1}<br>{p2}<br>{p3}<br><br>"
+        data.append((num+1,
+                     r.sof,
+                     e_cat,
+                     e_soc,
+                     e_count,
+                     e_laps,
+                     e_podium))
+
+    output_dir.mkdir(exist_ok=True)
+    _create_report(basename=output_dir / f"{event.name}_Splits", data=data, fields=fields, headings=headings)
 
 
 def fetch_and_report_drivers(event: Event, drivers: list, img_name_postfix: str = "", output_dir: Path = "./"):

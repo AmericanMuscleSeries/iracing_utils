@@ -23,12 +23,18 @@ message GroupRulesData
   int32     NumberOfDrops  = 4;
 }
 
-message TimePenaltyData
+message PenaltyData
 {
   int32 Race    = 1;
   int32 Driver  = 2;
-  int32 Seconds = 3;
 }
+
+message TimePenaltyData
+{
+  PenaltyData Base    = 1;
+  int32       Seconds = 2;
+}
+
 
 message PointsThresholdData
 {
@@ -89,15 +95,15 @@ message SheetsDisplayData
 
 message LeagueConfigurationData
 {
-  int32                    iRacingID        = 1;
-  string                   Name             = 2;
-  string                   Season           = 3;
-  AnyScoringSystemData     ScoringSystem    = 4;
-  repeated int32           NonDrivers       = 5;
-  repeated int32           PracticeSessions = 6;
-  repeated GroupRulesData  GroupRule        = 7;
-  repeated TimePenaltyData TimePenalty      = 8;
-  SheetsDisplayData        SheetsDisplay    = 9;
+  int32                         iRacingID        = 1;
+  string                        Name             = 2;
+  string                        Season           = 3;
+  AnyScoringSystemData          ScoringSystem    = 4;
+  repeated int32                NonDrivers       = 5;
+  repeated int32                PracticeSessions = 6;
+  repeated GroupRulesData       GroupRule        = 7;
+  repeated PenaltyData          Disqualification = 8;
+  repeated TimePenaltyData      TimePenalty      = 9;
 }
 
 // Data structures for holding iRacing data

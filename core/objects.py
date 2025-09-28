@@ -94,7 +94,7 @@ class Member:
         self._cust_id = cust_id
         self._name = name
         if nickname is None:
-            self._nickname = ""
+            self._nickname = name
         else:
             self._nickname = nickname
 
@@ -374,6 +374,9 @@ class Race:
     @property
     def track(self): return self._track
 
+    @property
+    def grid_size(self): return len(self.grid)
+
     def get_stats(self, group: str):
         if group not in self.stats:
             self.stats[group] = GroupStats(group)
@@ -390,6 +393,16 @@ class Race:
         if cust_id not in self.grid:
             return None
         return self.grid[cust_id]
+
+    def get_results(self):
+        results = []
+        for pos in range(1, len(self.grid)+1):
+            for cust_id, result in self.grid.items():
+                if result.finish_position == pos:
+                    results.append((cust_id, result))
+        if len(results) != len(self.grid):
+            _logger.error("results not the same length as the grid")
+        return results
 
 
 class Result:
@@ -560,6 +573,9 @@ class EventResult:
         self._num_laps[category] = 0
         self._soc[category] = sof
 
+    def get_categories(self):
+        return self._soc.keys()
+
     def add_team(self, team_id: str, category: str, name: str, car: str):
         if team_id in self._teams:
             return self._teams[team_id]
@@ -606,6 +622,15 @@ class EventResult:
 
     def strength_of_category(self, category: str):
         return self._soc[category]
+
+    def get_finish_order(self, category: str):
+        order = {}
+        for irID, team in self._teams.items():
+            if team.category != category:
+                continue
+            order[team.finish_position_in_class] = team
+
+        return dict(sorted(order.items()))
 
 
 class EventTeam:
@@ -751,7 +776,8 @@ def serialize_league_result_to_string(src: LeagueResult, fmt: SerializationForma
             stats_data.PolePosition = stats.pole_position
             stats_data.WinningPosition = stats.winning_position
             stats_data.WinningDriver = stats.winning_driver
-            stats_data.FastestLapDriver = stats.fastest_lap_driver
+            if stats.fastest_lap_driver is not None:  # A race can have no fastest_lap_driver (nobody has a valid lap)
+                stats_data.FastestLapDriver = stats.fastest_lap_driver
             stats_data.FastestLapTime = stats.fastest_lap_time
             if stats.most_laps_lead_driver is not None:
                 stats_data.MostLapsLeadDriver = stats.most_laps_lead_driver
@@ -801,16 +827,17 @@ def serialize_league_result_data_from_bind(src: LeagueResultData, dst: LeagueRes
     for cust_id, driver_data in src.Drivers.items():
         driver = dst.add_driver(cust_id)
         driver._name = driver_data.Name
-        driver._old_irating = driver.OldRating
-        driver._new_irating = driver.NewRating
-        driver._group = driver_data.Group
+        driver._old_irating = driver_data.OldRating
+        driver._new_irating = driver_data.NewRating
         driver._car_number = driver_data.CarNumber
-        driver._total_races = driver_data.TotalRaces
+        driver._group = driver_data.Group
+        driver._total_race_starts = driver_data.TotalRaceStarts
         # Points
         driver._earned_points = driver_data.EarnedPoints
         driver._drop_points = driver_data.DropPoints
         driver._handicap_points = driver_data.HandicapPoints
         driver._clean_driver_points = driver_data.CleanDriverPoints
+        driver._completed_race_points = driver_data.CompletedRacesPoints
         # Pole Position
         driver._total_pole_positions = driver_data.TotalPolePositions
         driver._pole_position_points = driver_data.PolePositionPoints
@@ -820,9 +847,10 @@ def serialize_league_result_data_from_bind(src: LeagueResultData, dst: LeagueRes
         driver._race_finish_points = driver_data.RaceFinishPoints
         driver._total_incidents = driver_data.TotalIncidents
         driver._total_laps_complete = driver_data.TotalLapsComplete
+        driver._total_completed_races = driver_data.TotalCompletedRaces
         # Laps Lead
-        driver._total_laps_lead = driver_data.TotalLapsLead
-        driver._laps_lead_points = driver_data.LapsLeadPoints
+        driver._total_lead_a_lap = driver_data.TotalLeadALap
+        driver._lead_a_lap_points = driver_data.LeadALapPoints
         driver._total_most_laps_lead = driver_data.TotalMostLapsLead
         driver._most_laps_lead_points = driver_data.MostLapsLeadPoints
         # Fast Laps
@@ -835,8 +863,8 @@ def serialize_league_result_data_from_bind(src: LeagueResultData, dst: LeagueRes
     for race_num, race_data in src.Races.items():
         race = dst.add_race(race_num, race_data.Date, race_data.Track)
 
-        for group_stats_data in race_data.GroupStats:
-            stats = race.get_stats(group_stats_data.Group)
+        for group_name, group_stats_data in race_data.GroupStats.items():
+            stats = race.get_stats(group_name)
             stats._num_drivers = group_stats_data.Count
             stats._pole_position_driver = group_stats_data.PolePositionDriver
             stats._pole_position = group_stats_data.PolePosition
@@ -847,7 +875,7 @@ def serialize_league_result_data_from_bind(src: LeagueResultData, dst: LeagueRes
             stats._most_laps_lead_driver = group_stats_data.MostLapsLeadDriver
             stats._most_laps_lead = group_stats_data.MostLapsLead
             for cust_id in group_stats_data.LapsLeadDrivers:
-                stats.laps_lead_drivers.append(cust_id)
+                stats.lead_a_lap_drivers.append(cust_id)
 
         for cust_id, result_data in race_data.Grid.items():
             result = race.add_result(cust_id)
@@ -959,7 +987,7 @@ def serialize_event_data_from_bind(src: EventData, dst: Event):
                 driver._new_irating = driver_data.NewRating
                 driver._total_incidents = driver_data.TotalIncidents
                 driver._total_laps_complete = driver_data.TotalLapsComplete
-                driver._total_laps_lead = driver_data.TotalLapsLead
+                driver._total_most_laps_lead = driver_data.TotalMostLapsLead
 
             for cust_id, member_data in team_data.Members.items():
                 team.add_member(cust_id, member_data.Name)

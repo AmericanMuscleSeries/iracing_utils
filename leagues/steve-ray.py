@@ -1,13 +1,12 @@
 # Distributed under the Apache License, Version 2.0.
 # See accompanying NOTICE file for details.
 
-import logging
-
 from enum import Enum
 
-from score_league import score_league
-from core.league import LeagueConfiguration, GroupRules, PositionValue
-from core.objects import Driver, LeagueResult
+from score_league import score_league, fetch_all_season_names
+from core.league import LeagueConfiguration, GroupRules, PositionValue, \
+    serialize_league_configuration_to_string, serialize_league_configuration_from_string
+from core.objects import Driver, LeagueResult, SerializationFormat
 from core.sheets import SheetsDisplay, SortBy
 
 __ff = 9555
@@ -25,32 +24,68 @@ class LeagueType(Enum):
 
 
 def main():
-    cfgs = []
-    lt = LeagueType.SRF
+    legacy = []
+    leagues = []
+    lt = LeagueType.FF
+    num_drops = 0  # TODO Try to make this automagical?
 
-    s = []
     if lt == LeagueType.FF or lt == LeagueType.WW:
-        # s = ["2025 S1 FF Weekend Warriors", "1YsYm0TRjSjIR1r0EBxUCKq6yyRBgpHFe8F1dXhQAv0k"]
-        s = ["2025 S2", "121Fx4vKQ2t5Urdzueq5LWqdhv_ksKIt0S4b9_wTlw2s"]
-        cfgs.extend(_get_ww_configurations(__ff, s[0]))
+        legacy.append((__ff, "2025 S1 FF Weekend Warriors", RaySheets("1YsYm0TRjSjIR1r0EBxUCKq6yyRBgpHFe8F1dXhQAv0k")))
+        legacy.append((__ff, "2025 S2", RaySheets("121Fx4vKQ2t5Urdzueq5LWqdhv_ksKIt0S4b9_wTlw2s")))
+        legacy.append((__ff, "2025S3 WW FF1600", RaySheets("1CNixnEGEtJyIRNzUD-84NIlFv7Ef2oCQFJ6lGByT5Cc")))
+        s = (__ff, "2025S4 WW FF1600", RaySheets("1vaalgnOjVqw-wJxVBIyfguVCZQBtRTAm6OaTZqPM7TU"))
+        leagues.append(s)
     if lt == LeagueType.FV or lt == LeagueType.WW:
-        # s = ["WW FV 2025 S1", "1W3gXY5wZzrYDoUL6_xbaK65KWI0dE_O_Ca-XRluq240"]
-        s = ["WW FV 2025 S2", "1bFBGHBxaN6CdNBy3t-I_AByVmaZIB--_SF1wWbJgM4U"]
-        cfgs.extend(_get_ww_configurations(__fv, s[0]))
+        legacy.append((__fv, "WW FV 2025 S1", RaySheets("1W3gXY5wZzrYDoUL6_xbaK65KWI0dE_O_Ca-XRluq240")))
+        legacy.append((__fv, "WW FV 2025 S2", RaySheets("1bFBGHBxaN6CdNBy3t-I_AByVmaZIB--_SF1wWbJgM4U")))
+        legacy.append((__fv, "WW FV 2025 S3", RaySheets("1vAODigWsOreSP0hAVZZdx3BaRyiJniAD82zcUuiBPfk")))
+        s = (__fv, "WW FV 2025 S4", RaySheets("1NfwzTzXWI4EewIY36YhLi-k48w8OJJlTHIYFSwLerIo"))
+        leagues.append(s)
     if lt == LeagueType.SRF or lt == LeagueType.WW:
-        # s = ["2025 S1 SRF Weekend Warriors", "1yFPSQoAYfz5gch9TQgv7AIU6pvHLnElHZPIIqhs0KfU"]
-        s = ["2025 S2", "1MbgV4Iwz2TPYMN5ZHiP0eXwltdvN1ML_zhZhOyp7cbk"]
-        cfgs.extend(_get_ww_configurations(__srf, s[0]))
+        legacy.append((__srf, "2025 S1 SRF Weekend Warriors", RaySheets("1yFPSQoAYfz5gch9TQgv7AIU6pvHLnElHZPIIqhs0KfU")))
+        legacy.append((__srf, "2025 S2", RaySheets("1MbgV4Iwz2TPYMN5ZHiP0eXwltdvN1ML_zhZhOyp7cbk")))
+        legacy.append((__srf, "2025 S3 SRF WW", RaySheets("1Zfig0SYlfPvbhCOAA5ekQYgpfDlCQeGm8DbpUH3-mTo")))
+        s = (__srf, "2025S4 WW SRF 10yr Anniversary season", RaySheets("1fOaE9Afo0DtdSbY7SoTP7MnrUSRGgp9AE2IqCExFXmA"))
+        leagues.append(s)
     if lt == LeagueType.ECR:
+        # TODO this league is weird...not really done, this will probably crash
         s = [[("RES CRL FV Season 1", "FV"),
-              #("RES CRL GT4 Season 1", "GT4"),
+              # ("RES CRL GT4 Season 1", "GT4"),
               ("RES CRL Miatas Season 1", "Miatas"),
               ("RES CRL SRF Season 1", "SRF"),
               ("RES CRL TCR Season 1", "TCR")],
-             "1WgL6EExoj1nvSCml5S2htuGmKej7FMSC8eNQ3LGEBy0"]
-        cfgs = _get_ecr_configurations(__ecr, s[0])
+             RaySheets("1WgL6EExoj1nvSCml5S2htuGmKej7FMSC8eNQ3LGEBy0")]
+        for group in s[0]:
+            for cfg in _get_ecr_configurations(__ecr, group):
+                score_league(cfg, s[1])
+                json = serialize_league_configuration_to_string(cfg, SerializationFormat.JSON)
+                serialize_league_configuration_from_string(json, SerializationFormat.JSON)
 
-    score_league(cfgs, RaySheets(s[1]))
+    """
+    # Pull ALL legacy results (Don't push)
+    league_id = __srf
+    all_seasons = fetch_all_season_names(league_id)
+    for season in all_seasons:
+        all_cfg = LeagueConfiguration(iracing_id=league_id, season=season)
+        all_cfg.add_group_rule("All Drivers", GroupRules(0, 999, num_drops))
+        _setup_scoring(all_cfg)
+        expected_filename = Path(f"./results/SRF Weekend Warriors {all_cfg.season}.json")
+        if not expected_filename.exists():
+            score_league(all_cfg, broadcast=False)
+    """
+
+    """
+    # Pull legacy results (Don't push)
+    for league in legacy:
+        cfgs = _get_ww_configurations(league[0], league[1], 0)
+        for cfg in cfgs:
+            score_league(cfg, broadcast=False)
+    """
+
+    for league in leagues:
+        cfgs = _get_ww_configurations(league[0], league[1], num_drops)
+        for cfg in cfgs:
+            score_league(cfg, league[2])
 
 
 def _setup_scoring(cfg: LeagueConfiguration):
@@ -88,7 +123,7 @@ class RaySheets(SheetsDisplay):
 
     def __init__(self, sheet_id: str):
         super().__init__(sheet_id)
-        self.sort_by = SortBy.Earned
+        self.sort_by = SortBy.ForcedDrops
 
     def create_row(self, cust_id: int, driver: Driver, lgr: LeagueResult) -> list:
         row = list()  # Make a list per driver row
@@ -140,36 +175,44 @@ class RaySheets(SheetsDisplay):
     def race_start_column(self): return 'Q'
 
 
-def _get_ww_configurations(league_id: int, season: str) -> list[LeagueConfiguration]:
+def _pull_all_seasons(league_id: int):
+    all_seasons = LeagueConfiguration.fetch_all_season_names(league_id)
+
+
+def _get_ww_configurations(league_id: int, season: str, num_drops: int) -> list[LeagueConfiguration]:
 
     def apply_penalties(cfg: LeagueConfiguration):
         if league_id == __ff:
             pass
         elif league_id == __fv:
-            pass
+            # Apply Penalties
+            if season == "WW FV 2025 S4":
+                cfg.add_time_penalty(1, 284039, 30)  # Degasis (927)
         elif league_id == __srf:
-            cfg.add_time_penalty(9, 16630, 180)  # Simoes
+            if season == "2025S4 WW SRF 10yr Anniversary season":
+                cfg.add_practice_session(2)  # The anniversary race, does not count towards points
+                cfg.add_disqualification(1, 59267)  # Perry (97)
 
     all_cfg = LeagueConfiguration(iracing_id=league_id, season=season)
-    all_cfg.add_group_rule("All Drivers", GroupRules(0, 999, 3))
+    all_cfg.add_group_rule("All Drivers", GroupRules(0, 999, num_drops))
     _setup_scoring(all_cfg)
     apply_penalties(all_cfg)
 
     class_config = LeagueConfiguration(iracing_id=league_id, season=season)
-    class_config.add_group_rule("S1 Drivers", GroupRules(0, 199, 3))
-    class_config.add_group_rule("S2 Drivers", GroupRules(200, 899, 3))
-    class_config.add_group_rule("Masters Drivers", GroupRules(900, 999, 3))
+    class_config.add_group_rule("S1 Drivers", GroupRules(0, 199, num_drops))
+    class_config.add_group_rule("S2 Drivers", GroupRules(200, 899, num_drops))
+    class_config.add_group_rule("Masters Drivers", GroupRules(900, 999, num_drops))
     _setup_scoring(class_config)
-    apply_penalties(all_cfg)
+    apply_penalties(class_config)
 
     return [all_cfg, class_config]
 
 
-def _get_ecr_configurations(league_id: int, seasons: list[(str, str)]) -> list[LeagueConfiguration]:
+def _get_ecr_configurations(league_id: int, seasons: list[(str, str)], num_drops: int) -> list[LeagueConfiguration]:
     cfgs = []
     for season in seasons:
         cfg = LeagueConfiguration(iracing_id=league_id, season=season[0])
-        cfg.add_group_rule(season[1], GroupRules(0, 999, 3))
+        cfg.add_group_rule(season[1], GroupRules(0, 999, num_drops))
         _setup_scoring(cfg)
         cfgs.append(cfg)
 
