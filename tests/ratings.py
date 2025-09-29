@@ -4,6 +4,8 @@
 import json
 from pathlib import Path
 from trueskill import TrueSkill
+# An interesting use of trueskill
+# https://www.reddit.com/r/formula1/comments/1cb4aen/trueskill_ratings_separating_driver_performance/
 
 from core.objects import LeagueResult
 
@@ -13,7 +15,7 @@ def assess_seasons(season_filenames: list) -> dict:
     for season_filename in season_filenames:
         assess_season(season_filename, league_ratings)
     # Sort the league_ratings by rating mu
-    driver_rankings = sorted(list(league_ratings.values()), key=lambda d: d["rating"].mu, reverse=True)
+    driver_rankings = sorted(list(league_ratings.values()), key=lambda d: (d["rating"].mu-3*d["rating"].sigma), reverse=True)
     for idx, driver in enumerate(driver_rankings):
         driver["league_rank"] = idx+1
     return league_ratings
@@ -78,14 +80,14 @@ def write_ratings_file(league_ratings: dict, rating_filename: Path, sigma_thresh
         j_items = items.copy()
         j_items["mu"] = j_items["rating"].mu
         j_items["sigma"] = j_items["rating"].sigma
-        del j_items["rating"]
+        j_items["rating"] = j_items["mu"] - (3*j_items["sigma"])
         league_order.append(j_items)
-    sorted_ratings = sorted(league_order, key=lambda x: x["mu"], reverse=True)
+    sorted_ratings = sorted(league_order, key=lambda x: x["rating"], reverse=True)
 
     if rating_filename.suffix == ".txt":
         with open(rating_filename, 'w', encoding='utf-8') as file:
             for idx, p in enumerate(sorted_ratings):
-                file.write(f"{idx+1}. {p['name']} ({p['league_rank']}) {p['mu']} ({p['sigma']}) {p['starts']} starts\n")
+                file.write(f"{idx+1}. {p['name']} ({p['league_rank']}) {p['rating']} ({p['mu']} {p['sigma']}) {p['starts']} starts\n")
     elif rating_filename.suffix == ".json":
         with open(rating_filename, 'w') as file:
             json.dump(sorted_ratings, file, indent=2)
@@ -93,7 +95,7 @@ def write_ratings_file(league_ratings: dict, rating_filename: Path, sigma_thresh
 
 def main():
     out_dir = Path("./ratings")
-    todo = ["ww-srf"]
+    todo = ["ww-srf"]  # ["ww-ff", "ww-fv"]  # , "ams"]
 
     def write_ratings(name: str, season_files: list, dst: Path):
         ratings = assess_seasons(season_files)
@@ -139,7 +141,7 @@ def main():
                        Path("./results/SRF Weekend Warriors 2025 S2.json"),
                        Path("./results/SRF Weekend Warriors 2025 S3 SRF WW.json"),
                        Path("./results/SRF Weekend Warriors 2025S4 WW SRF 10yr Anniversary season.json")]
-            #  seasons = list(Path("./results").glob("SRF*.json"))
+            # seasons = list(Path("./results").glob("SRF*.json"))
             write_ratings(name="Weekend Warriors SRF", season_files=seasons, dst=out_dir/f"{lg}")
             continue
 
