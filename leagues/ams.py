@@ -1,7 +1,7 @@
 # Distributed under the Apache License, Version 2.0.
 # See accompanying NOTICE file for details.
 
-from score_league import score_league
+from score_league import score_league, InitializeSheets
 from core.league import (LeagueConfiguration, GroupRules,
                          serialize_league_configuration_to_string, serialize_league_configuration_from_string)
 from core.objects import Driver, LeagueResult, PositionValue, SerializationFormat
@@ -11,6 +11,7 @@ __league_id = 6810
 
 
 def main():
+    args = InitializeSheets(log_filename="ams.log")
 
     """
     legacy = [get_season_1_cfg(),
@@ -28,7 +29,7 @@ def main():
 
     cfgs = get_season_9_cfgs()
     for cfg in cfgs:
-        score_league(cfg, AMSSheetsDisplay("1OkstOiQPomkSvvfYnjv8gBBgXx9F0L0cQXdXxlqSCuM"))
+        score_league(args, cfg, AMSSheetsDisplay("1OkstOiQPomkSvvfYnjv8gBBgXx9F0L0cQXdXxlqSCuM"))
         json = serialize_league_configuration_to_string(cfg, SerializationFormat.JSON)
         serialize_league_configuration_from_string(json, SerializationFormat.JSON)
 
@@ -136,6 +137,12 @@ def get_season_9_cfgs() -> list[LeagueConfiguration]:
                                               4: 1}
             scoring.clean_driver.minimum_requirement = 0.5
             scoring.clean_driver.separate_points = True
+            # Double up points for race 12
+            multiplier = scoring.add_race_multiplier(race=12)
+            multiplier.position = 2
+            multiplier.pole_position = 2
+            multiplier.fastest_lap = 2
+            multiplier.lead_a_lap = 2
 
         # Add non drivers like race control and media personalities
         cfg.add_non_driver(295683)  # Richey

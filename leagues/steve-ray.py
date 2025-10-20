@@ -3,7 +3,7 @@
 
 from enum import Enum
 
-from score_league import score_league, fetch_all_season_names
+from score_league import score_league, InitializeSheets
 from core.league import LeagueConfiguration, GroupRules, PositionValue, \
     serialize_league_configuration_to_string, serialize_league_configuration_from_string
 from core.objects import Driver, LeagueResult, SerializationFormat
@@ -24,9 +24,11 @@ class LeagueType(Enum):
 
 
 def main():
+    args = InitializeSheets(log_filename="steve-ray.log")
+
     legacy = []
     leagues = []
-    lt = LeagueType.FF
+    lt = LeagueType.WW
     num_drops = 0  # TODO Try to make this automagical?
 
     if lt == LeagueType.FF or lt == LeagueType.WW:
@@ -57,7 +59,7 @@ def main():
              RaySheets("1WgL6EExoj1nvSCml5S2htuGmKej7FMSC8eNQ3LGEBy0")]
         for group in s[0]:
             for cfg in _get_ecr_configurations(__ecr, group):
-                score_league(cfg, s[1])
+                score_league(args, cfg, s[1])
                 json = serialize_league_configuration_to_string(cfg, SerializationFormat.JSON)
                 serialize_league_configuration_from_string(json, SerializationFormat.JSON)
 
@@ -85,7 +87,7 @@ def main():
     for league in leagues:
         cfgs = _get_ww_configurations(league[0], league[1], num_drops)
         for cfg in cfgs:
-            score_league(cfg, league[2])
+            score_league(args, cfg, league[2])
 
 
 def _setup_scoring(cfg: LeagueConfiguration):

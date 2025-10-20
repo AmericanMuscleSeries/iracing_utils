@@ -95,15 +95,15 @@ def write_ratings_file(league_ratings: dict, rating_filename: Path, sigma_thresh
 
 def main():
     out_dir = Path("./ratings")
-    todo = ["ww-srf"]  # ["ww-ff", "ww-fv"]  # , "ams"]
+    todo = ["ams"]  # ["ww-srf", "ww-ff", "ww-fv"]  # , "rnp"]
 
-    def write_ratings(name: str, season_files: list, dst: Path):
+    def write_ratings(name: str, season_files: list, dst: Path, current_season_idx: int = -1):
         ratings = assess_seasons(season_files)
         dst.mkdir(exist_ok=True, parents=True)
         write_ratings_file(ratings, dst/f"{name} League Ratings.txt")
         write_ratings_file(ratings, dst/f"{name} League Ratings.json")
         write_ratings_file(ratings, dst/f"{name} Trimmed League Ratings.txt", sigma_threshold=2.0)
-        current_ratings = trim(ratings, season_files[-1])
+        current_ratings = trim(ratings, season_files[current_season_idx])
         write_ratings_file(current_ratings, dst/f"{name} Current Ratings.txt")
 
     for lg in todo:
@@ -143,6 +143,19 @@ def main():
                        Path("./results/SRF Weekend Warriors 2025S4 WW SRF 10yr Anniversary season.json")]
             # seasons = list(Path("./results").glob("SRF*.json"))
             write_ratings(name="Weekend Warriors SRF", season_files=seasons, dst=out_dir/f"{lg}")
+            continue
+
+        if lg == "rnp":
+            seasons = [Path("./results/Road N' Plate Palm Rat Golf Series Season 1.json"),
+                       Path("./results/Road N' Plate Palm Rat Golf Series Season 2.json"),
+                       Path("./results/Road N' Plate Palm Rat Golf Series Season 3.json"),
+                       Path("./results/Road N' Plate Palm Rat Golf Series Season 4.json"),
+                       Path("./results/Road N' Plate Palm Rat Golf Series Season 5.json"),
+                       Path("./results/Road N' Plate Palm Rat Golf Series Season 6.json"),
+                       Path("./results/Road N' Plate Palm Rat Golf Series Season 7.json"),
+                       Path("./results/Road N' Plate Palm Rat Golf Series Special Events.json"),
+                       Path("./results/Road N' Plate Palm Rat Golf Series Summer Series 2025.json")]
+            write_ratings(name="Road n' Plate", season_files=seasons, dst=out_dir/f"{lg}", current_season_idx=6)
             continue
 
 

@@ -12,55 +12,17 @@ import sys
 from pathlib import Path
 
 from core.league import LeagueConfiguration, LeagueResult
+from core.objects import InitializeMain
 from core.sheets import GDrive, SheetsDisplay
 
 _logger = logging.getLogger('log')
 
 
-class InitializeMain:
-    __slots__ = ["_username", "_password", "_parser"]
-
-    def __init__(self, description: str, log_filename: str):
-        logging.basicConfig(level=logging.INFO,
-                            format='%(levelname)s: %(message)s',
-                            filename=log_filename,
-                            filemode="w")
-        logging.getLogger('log').setLevel(logging.INFO)
-        logging.getLogger().addHandler(logging.StreamHandler(sys.stdout))
-
-        self._parser = argparse.ArgumentParser(description=description)
-        self._parser.add_argument(
-            "username",
-            type=str,
-            help="iracing user name."
-        )
-        self._parser.add_argument(
-            "password",
-            type=str,
-            help="iracing password."
-        )
-
-        self._username = None
-        self._password = None
-
-    def parse_args(self):
-        opts = self._parser.parse_args()
-        self._username = opts.username
-        self._password = opts.password
-        return opts
-
-    @property
-    def username(self): return self._username
-
-    @property
-    def password(self): return self._password
-
-
 class InitializeSheets(InitializeMain):
     __slots__ = ["_credentials"]
 
-    def __init__(self, description: str, log_filename: str):
-        super().__init__(description, log_filename)
+    def __init__(self, log_filename: str):
+        super().__init__(log_filename)
         self._credentials = None
 
         self._parser.add_argument(
@@ -79,20 +41,13 @@ class InitializeSheets(InitializeMain):
     def credentials(self): return self._credentials
 
 
-_args = InitializeSheets(log_filename="score_league.log",
-                         description="Pull league results and rack and stack them for presentation")
-
-
-def fetch_all_season_names(league_id: int) -> list:
-    return LeagueConfiguration.fetch_all_season_names(_args.username, _args.password, league_id)
-
-
-def score_league(cfg: LeagueConfiguration,
+def score_league(args: InitializeSheets,
+                 cfg: LeagueConfiguration,
                  sheets_display: SheetsDisplay = None,
                  active: bool = True,
                  broadcast: bool = True):
 
-    league = cfg.fetch_and_score_league(_args.username, _args.password, active)
+    league = cfg.fetch_and_score_league(args.username, args.password, active)
 
     # print_debug_stats(league, 609455)
     # print_debug_stats(league, 120570)
@@ -110,10 +65,10 @@ def score_league(cfg: LeagueConfiguration,
         broadcast_standings(cfg, league, results_dir)
 
     # Push our results up to our sheets
-    if sheets_display is not None and _args.credentials.exists():
+    if sheets_display is not None and args.credentials.exists():
         try:
             _logger.info("Pushing " + cfg.name + " season " + str(cfg.season) + " results to sheets")
-            GDrive.push_results_to_sheets(league, list(cfg.group_rules.keys()), sheets_display, _args.credentials)
+            GDrive.push_results_to_sheets(league, list(cfg.group_rules.keys()), sheets_display, args.credentials)
         except Exception as e:
             print("Failed to upload to google sheets", e)
             if "Token" in str(e) and "expired" in str(e):
@@ -125,7 +80,7 @@ def score_league(cfg: LeagueConfiguration,
                 print("I have deleted your google sheets authorization file: " + str(authorized_user_file))
                 print("Please select your gmail login in your browser again")
                 authorized_user_file.unlink()
-                GDrive.push_results_to_sheets(league, list(cfg.group_rules.keys()), sheets_display, _args.credentials)
+                GDrive.push_results_to_sheets(league, list(cfg.group_rules.keys()), sheets_display, args.credentials)
                 # TODO change up the auth type so we don't need to do this
     else:
         print("Could not find credentials file. Not pushing to sheets.")

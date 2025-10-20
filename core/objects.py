@@ -1,15 +1,58 @@
 # Distributed under the Apache License, Version 2.0.
 # See accompanying NOTICE file for details.
 
+import argparse
 import json
 import logging
+import sys
+
 from enum import Enum
 from collections import OrderedDict
-
 from google.protobuf import json_format, text_format
-from core.objects_pb2 import EventData, LeagueResultData
+from pathlib import Path
+
+from core.objects_pb2 import EventData, LeagueResultData, LapData
 
 _logger = logging.getLogger('log')
+
+
+class InitializeMain:
+    __slots__ = ["_username", "_password", "_parser"]
+
+    def __init__(self, log_filename: str):
+        logging.basicConfig(level=logging.INFO,
+                            format='%(levelname)s: %(message)s',
+                            filename=log_filename,
+                            filemode="w")
+        logging.getLogger('log').setLevel(logging.INFO)
+        logging.getLogger().addHandler(logging.StreamHandler(sys.stdout))
+
+        self._parser = argparse.ArgumentParser()
+        self._parser.add_argument(
+            "username",
+            type=str,
+            help="iracing user name."
+        )
+        self._parser.add_argument(
+            "password",
+            type=str,
+            help="iracing password."
+        )
+
+        self._username = None
+        self._password = None
+
+    def parse_args(self):
+        opts = self._parser.parse_args()
+        self._username = opts.username
+        self._password = opts.password
+        return opts
+
+    @property
+    def username(self): return self._username
+
+    @property
+    def password(self): return self._password
 
 
 class GroupRules:
@@ -74,9 +117,9 @@ class LeagueResult:
             return None
         return self.drivers[cust_id]
 
-    def add_race(self, number: int, date: str, track: str):
+    def add_race(self, number: int, date: str, track: str, subsession_id: int):
         if number not in self.races:
-            self.races[number] = Race(number, date, track)
+            self.races[number] = Race(number, date, track, subsession_id)
         return self.races[number]
 
     def get_race(self, number: int):
@@ -355,13 +398,15 @@ class Race:
     __slots__ = ["_number",
                  "_date",
                  "_track",
+                 "_subsession_id",
                  "stats",
                  "grid"]
 
-    def __init__(self, number: int, date: str, track: str):
+    def __init__(self, number: int, date: str, track: str, subsession_id: int):
         self._number = number
         self._date = date
         self._track = track
+        self._subsession_id = subsession_id
         self.stats = dict()
         self.grid = dict()
 
@@ -373,6 +418,9 @@ class Race:
 
     @property
     def track(self): return self._track
+
+    @property
+    def subsession_id(self): return self._subsession_id
 
     @property
     def grid_size(self): return len(self.grid)
@@ -405,12 +453,43 @@ class Race:
         return results
 
 
+class Lap:
+    __slots__ = ["_cust_id",
+                 "_position",
+                 "_number",
+                 "_time",
+                 "_time_stamp"]
+
+    def __init__(self):
+        self._cust_id = None
+        self._position = None
+        self._number = None
+        self._time = None
+        self._time_stamp = None
+
+    @property
+    def cust_id(self): return self._cust_id
+
+    @property
+    def position(self): return self._position
+
+    @property
+    def number(self): return self._number
+
+    @property
+    def time(self): return self._time
+
+    @property
+    def time_stamp(self): return self._time_stamp
+
+
 class Result:
     __slots__ = ["_cust_id",
                  "_met_minimum_distance",
                  "_pole_position",
                  "_fastest_lap",
                  "_start_position",
+                 "_finish_position",
                  "_finish_position",
                  "_points",
                  "_handicap_points",
@@ -423,7 +502,7 @@ class Result:
                  "_most_laps_lead",
                  "_fastest_lap_time",
                  "_mu", "_sigma",
-                 "lap_positions"]
+                 "laps"]
 
     def __init__(self, cust_id: int):
         self._cust_id = cust_id
@@ -444,7 +523,7 @@ class Result:
         self._fastest_lap_time = None
         self._mu = 0
         self._sigma = 0
-        self.lap_positions = []
+        self.laps = []
 
     @property
     def cust_id(self): return self._cust_id
@@ -500,6 +579,11 @@ class Result:
     @property
     def sigma(self): return self._sigma
 
+    def add_lap(self):
+        lap = Lap()
+        self.laps.append(lap)
+        return lap
+
 
 class Event:
     __slots__ = ["_name", "_is_multiclass", "_num_splits", "_results", "team_owners"]
@@ -529,11 +613,11 @@ class Event:
     @property
     def is_multiclass(self): return self._is_multiclass
 
-    def add_result(self, split: int, sof: int, url: str):
+    def add_result(self, split: int, sof: int, subsession_id: int):
         if split in self._results:
             # Two splits with the exact same sof!?!
             _logger.error(f"There is already results for split {split}")
-        result = EventResult(sof, url)
+        result = EventResult(sof, subsession_id)
         self._results[split] = result
         return result
 
@@ -558,15 +642,19 @@ class Event:
 
 
 class EventResult:
-    __slots__ = ["_sof", "_soc", "_url", "_num_cars", "_num_laps", "_teams"]
+    __slots__ = ["_subsession_id", "_sof", "_soc", "_url", "_num_cars", "_num_laps", "_teams"]
 
-    def __init__(self, sof: int, url: str):
+    def __init__(self, sof: int, subsession_id: int):
+        self._subsession_id = subsession_id
         self._sof = sof
-        self._url = url
+        self._url = f"https://members.iracing.com/membersite/member/EventResult.do?subsessionid={subsession_id}"
         self._num_cars = {}
         self._num_laps = {}
         self._soc = {}
         self._teams = {}
+
+    @property
+    def subsession_id(self): return self._subsession_id
 
     def add_category(self, category: str, sof: int):
         self._num_cars[category] = 0
@@ -576,10 +664,10 @@ class EventResult:
     def get_categories(self):
         return self._soc.keys()
 
-    def add_team(self, team_id: str, category: str, name: str, car: str):
+    def add_team(self, team_id: str, category: str, name: str, car: str, car_number: int):
         if team_id in self._teams:
             return self._teams[team_id]
-        team = EventTeam(team_id, category, name, car)
+        team = EventTeam(team_id, category, name, car, car_number)
         self._teams[team_id] = team
         return team
 
@@ -587,6 +675,13 @@ class EventResult:
         if team_id in self._teams:
             return self._teams[team_id]
         return None
+
+    def get_owner_teams(self, cust_id: int):
+        teams = []
+        for team_id, team in self._teams.items():
+            if cust_id == team.owner:
+                teams.append(team)
+        return teams
 
     def get_driver_teams(self, cust_id: int):
         teams = []
@@ -634,17 +729,18 @@ class EventResult:
 
 
 class EventTeam:
-    __slots__ = ["_team_id", "_owner", "_category", "_name", "_car", "_reason_out",
+    __slots__ = ["_team_id", "_owner", "_category", "_name", "_car", "_car_number", "_reason_out",
                  "_finish_position", "_finish_position_in_class",
                  "_total_laps_complete", "_total_incidents",
-                 "_drivers", "_members"]
+                 "_drivers", "_members", "laps"]
 
-    def __init__(self, team_id: str, category: str, name: str, car: str):
+    def __init__(self, team_id: str, category: str, name: str, car: str, car_number: int):
         self._team_id = team_id
         self._owner = None
         self._category = category
         self._name = name
         self._car = car
+        self._car_number = car_number
         self._reason_out = None
         self._finish_position = None
         self._finish_position_in_class = None
@@ -652,6 +748,7 @@ class EventTeam:
         self._total_incidents = 0
         self._drivers = dict()
         self._members = dict()
+        self.laps = []
 
     def add_driver(self, cust_id: int, name: str) -> Driver:
         self.add_member(cust_id, name)
@@ -660,6 +757,11 @@ class EventTeam:
         else:
             _logger.warning(f"Driver {cust_id} already exists.")
         return self._drivers[cust_id]
+
+    def add_lap(self):
+        lap = Lap()
+        self.laps.append(lap)
+        return lap
 
     def set_owner(self, cust_id: int):
         self._owner = cust_id
@@ -687,6 +789,9 @@ class EventTeam:
 
     @property
     def car(self): return self._car
+
+    @property
+    def car_number(self): return self._car_number
 
     @property
     def category(self): return self._category
@@ -768,6 +873,7 @@ def serialize_league_result_to_string(src: LeagueResult, fmt: SerializationForma
         race_data = dst.Races[race_number]
         race_data.Date = race.date
         race_data.Track = race.track
+        race_data.SubsessionID = race.subsession_id
 
         for group, stats in race.stats.items():
             stats_data = race_data.GroupStats[group]
@@ -787,6 +893,7 @@ def serialize_league_result_to_string(src: LeagueResult, fmt: SerializationForma
 
         for cust_id, result in race.grid.items():
             results_data = race_data.Grid[cust_id]
+            results_data.MetMinimumDistance = result.met_minimum_distance
             results_data.PolePosition = result.pole_position
             results_data.FastestLap = result.fastest_lap
             results_data.StartPosition = result.start_position
@@ -801,10 +908,25 @@ def serialize_league_result_to_string(src: LeagueResult, fmt: SerializationForma
             results_data.LapsLead = result.laps_lead
             results_data.MostLapsLead = result.most_laps_lead
             results_data.FastestLapTime = result.fastest_lap_time
+            for lap in result.laps:
+                lap_data = LapData()
+                lap_data.Driver = lap.cust_id
+                lap_data.Number = lap.number
+                lap_data.Position = lap.position
+                lap_data.Time = lap.time
+                lap_data.TimeStamp = lap.time_stamp
+                results_data.Laps.append(lap_data)
             results_data.Mu = result.mu
             results_data.Sigma = result.sigma
 
     return serialize_to_string(dst, fmt)
+
+
+def serialize_league_result_from_file(filename: Path) -> LeagueResult:
+    with open(filename, 'r') as file:
+        d = json.load(file)
+    lg = LeagueResult.from_dict(d)
+    return lg
 
 
 def serialize_league_result_from_string(src: str, fmt: SerializationFormat) -> LeagueResult:
@@ -861,7 +983,7 @@ def serialize_league_result_data_from_bind(src: LeagueResultData, dst: LeagueRes
         driver._sigma = driver_data.Sigma
 
     for race_num, race_data in src.Races.items():
-        race = dst.add_race(race_num, race_data.Date, race_data.Track)
+        race = dst.add_race(race_num, race_data.Date, race_data.Track, race_data.SubsessionID)
 
         for group_name, group_stats_data in race_data.GroupStats.items():
             stats = race.get_stats(group_name)
@@ -893,6 +1015,14 @@ def serialize_league_result_data_from_bind(src: LeagueResultData, dst: LeagueRes
             result._laps_lead = result_data.LapsLead
             result._most_laps_lead = result_data.MostLapsLead
             result._fastest_lap_time = result_data.FastestLapTime
+            # Laps
+            for lap_data in result_data.Laps:
+                lap = result.add_lap()
+                lap._cust_id = lap_data.Driver
+                lap._number = lap_data.Number
+                lap._position = lap_data.Position
+                lap._time = lap_data.Time
+                lap._time_stamp = lap_data.TimeStamp
             result._mu = result_data.Mu
             result._sigma = result_data.Sigma
 
@@ -905,6 +1035,7 @@ def serialize_event_to_string(src: Event, fmt: SerializationFormat) -> str:
 
     for split, result in src._results.items():
         result_data = dst.Results[split]
+        result_data.SubsessionID = result.subsession_id
         result_data.StrengthOfField = result.sof
         result_data.URL = result.url
 
@@ -920,6 +1051,7 @@ def serialize_event_to_string(src: Event, fmt: SerializationFormat) -> str:
             team_data.Name = team.name
             team_data.Category = team.category
             team_data.Car = team.car
+            team_data.CarNumber = team.car_number
             team_data.ReasonOut = team.reason_out
             team_data.FinishPosition = team.finish_position
             team_data.FinishPositionInClass = team.finish_position_in_class
@@ -927,6 +1059,14 @@ def serialize_event_to_string(src: Event, fmt: SerializationFormat) -> str:
             team_data.TotalLapsComplete = team.total_laps_complete
             if team.owner:
                 team_data.Owner = team.owner
+            for lap in team.laps:
+                lap_data = LapData()
+                lap_data.Driver = lap.cust_id
+                lap_data.Number = lap.number
+                lap_data.Position = lap.position
+                lap_data.Time = lap.time
+                lap_data.TimeStamp = lap.time_stamp
+                team_data.Laps.append(lap_data)
 
             for cust_id, driver in team._drivers.items():
                 driver_data = team_data.Drivers[cust_id]
@@ -942,6 +1082,13 @@ def serialize_event_to_string(src: Event, fmt: SerializationFormat) -> str:
                 member_data.Name = member.name
 
     return serialize_to_string(dst, fmt)
+
+
+def serialize_event_from_file(filename: Path):
+    r = open(filename)
+    d = json.load(r)
+    event = Event.from_dict(d)
+    return event
 
 
 def serialize_event_from_string(src: str, fmt: SerializationFormat) -> Event:
@@ -962,7 +1109,7 @@ def serialize_event_data_from_bind(src: EventData, dst: Event):
     dst._is_multiclass = src.IsMulticlass
 
     for split, result_data in src.Results.items():
-        result = dst.add_result(split, result_data.StrengthOfField, result_data.URL)
+        result = dst.add_result(split, result_data.StrengthOfField, result_data.SubsessionID)
 
         for category, num_cars in result_data.NumCategoryCars.items():
             result._num_cars[category] = num_cars
@@ -972,7 +1119,7 @@ def serialize_event_data_from_bind(src: EventData, dst: Event):
             result._soc[category] = sof
 
         for team_id, team_data in result_data.Teams.items():
-            team = result.add_team(team_id, team_data.Category, team_data.Name, team_data.Car)
+            team = result.add_team(team_id, team_data.Category, team_data.Name, team_data.Car, team_data.CarNumber)
             team._reason_out = team_data.ReasonOut
             team._finish_position = team_data.FinishPosition
             team._finish_position_in_class = team_data.FinishPositionInClass
@@ -980,6 +1127,13 @@ def serialize_event_data_from_bind(src: EventData, dst: Event):
             team._total_laps_complete = team_data.TotalLapsComplete
             if team_data.Owner:
                 team._owner = team_data.Owner
+            for lap_data in team_data.Laps:
+                lap = team.add_lap()
+                lap._cust_id = lap_data.Driver
+                lap._number = lap_data.Number
+                lap._position = lap_data.Position
+                lap._time = lap_data.Time
+                lap._time_stamp = lap_data.TimeStamp
 
             for cust_id, driver_data in team_data.Drivers.items():
                 driver = team.add_driver(cust_id, driver_data.Name)

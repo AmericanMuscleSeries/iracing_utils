@@ -70,25 +70,33 @@ def pull_event(idc: irDataClient, series_name: str, year: int, detailed_team: bo
         split += 1
         num_teams = len(ir_race_results["results"])
         _logger.info(f"Pulling the members from {num_teams} teams for split {split}")
-        result = event.add_result(split, ir_result["event_strength_of_field"],
-                                  "https://members.iracing.com/membersite/member/EventResult.do?subsessionid=" +
-                                  str(ir_result["subsession_id"]))
+        result = event.add_result(split, ir_result["event_strength_of_field"], ir_result["subsession_id"])
+        all_laps = idc.result_lap_chart_data(subsession_id=ir_result["subsession_id"])
+
         for car_class in ir_result["car_classes"]:
             result.add_category(car_class["short_name"], car_class["strength_of_field"])
         if log:
             _logger.info(f"SOF: {result.sof}")
         for ir_team_result in ir_race_results["results"]:
             result.count_cars_and_laps(ir_team_result["car_class_short_name"], ir_team_result["laps_complete"])
-            team = result.add_team(ir_team_result["team_id"] if "team_id" in ir_team_result
-                                   else ir_team_result["cust_id"],
+            team = result.add_team(ir_team_result["team_id"] if "team_id" in ir_team_result else ir_team_result["cust_id"],
                                    ir_team_result["car_class_short_name"],
                                    ir_team_result["display_name"],
-                                   ir_team_result["car_name"])
+                                   ir_team_result["car_name"],
+                                   int(ir_team_result["livery"]["car_number"]))
             team._reason_out = ir_team_result["reason_out"]
             team._finish_position = ir_team_result["finish_position"]+1
             team._finish_position_in_class = ir_team_result["finish_position_in_class"]+1
             team._total_laps_complete = ir_team_result["laps_complete"]
             team._total_incidents = ir_team_result["incidents"]
+            for race_lap in all_laps:
+                if race_lap["group_id"] == team.id:
+                    lap = team.add_lap()
+                    lap._cust_id = race_lap["cust_id"]
+                    lap._position = race_lap["lap_position"]
+                    lap._number = race_lap["lap_number"]
+                    lap._time = race_lap["lap_time"]
+                    lap._time_stamp = race_lap["session_time"]
             if log:
                 _logger.info(f"\tTeam: {team.name}, Class: {team.category}, Car: {team.car}")
             # Add team members

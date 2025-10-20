@@ -35,6 +35,19 @@ message TimePenaltyData
   int32       Seconds = 2;
 }
 
+message PointsMultiplierData
+{
+  int32            Race         = 1;
+  int32            Position     = 2;
+  // Bonus
+  int32            CleanDriver  = 3;
+  int32            FastestLap   = 4;
+  int32            FinishRace   = 5;
+  int32            LeadALap     = 6;
+  int32            MostLapsLead = 7;
+  int32            PolePosition = 8;
+}
+
 
 message PointsThresholdData
 {
@@ -44,22 +57,23 @@ message PointsThresholdData
 
 message IncidentPointsData
 {
-  map<int32,int32> PointMap           = 1; // Map of number of the number of incidents to the points received
+  map<int32,int32> PointMap           = 1; // Map of number of incidents to the points received
   float            MinimumRequirement = 2; // < 1 is a % of the race, >= 1 is minimum number of laps back
   bool             SeparatePoints     = 3; // Include Incident points in race points or not
 }
 
 message ScoringSystemData
 {
-  float               MinimumRaceDistance = 1; // < 1 is a % of the race, >= 1 is minimum number of laps back
-  int32               PolePosition        = 2; // Points received for getting pole position
-  PointsThresholdData FastestLap          = 3; // Points received for getting fastest lap in the race
-  PointsThresholdData LeadALap            = 4; // Points received for leading a lap
-  PointsThresholdData MostLapsLead        = 5; // Points received for leading the most laps
-  PointsThresholdData FinishRace          = 6; // Points received if you finish X% of the race
-  IncidentPointsData  CleanDriver         = 7; // Map of points to get based on your incidents
-  bool                SeparatePool        = 8; // Use the same pool of points per class or not
-  ePositionValue      PositionValue       = 9; // How to assign a position value to a league with more than one class
+  float                         MinimumRaceDistance = 1; // < 1 is a % of the race, >= 1 is minimum number of laps back needed to get any points for a race
+  int32                         PolePosition        = 2; // Points received for getting pole position
+  PointsThresholdData           FastestLap          = 3; // Points received for getting fastest lap in the race
+  PointsThresholdData           LeadALap            = 4; // Points received for leading a lap
+  PointsThresholdData           MostLapsLead        = 5; // Points received for leading the most laps
+  PointsThresholdData           FinishRace          = 6; // Points received if you finish X% of the race
+  IncidentPointsData            CleanDriver         = 7; // Map of points to get based on your incidents
+  bool                          SeparatePool        = 8; // Use the same pool of points per class or not
+  ePositionValue                PositionValue       = 9; // How to assign a position value to a league with more than one class
+  repeated PointsMultiplierData RaceMultiplier      = 10;
 }
 
 // Race winner will get TopScore, each subsequent racer will get 1 less point
@@ -158,6 +172,14 @@ message DriverData
   float     Sigma                = 27;
 }
 
+message LapData
+{
+  int32  Driver                = 1;
+  int32  Number                = 2;
+  int32  Position              = 3;
+  int32  Time                  = 4;
+  int32  TimeStamp             = 5;
+}
 
 message ResultData
 {
@@ -178,7 +200,7 @@ message ResultData
   float  FastestLapTime       = 15;
   float  Mu                   = 16; // Trueskill
   float  Sigma                = 17; // Trueskill
-  repeated int32 LapPositions = 18;
+  repeated LapData Laps       = 18;
 }
 
 message GroupStatsData
@@ -197,10 +219,11 @@ message GroupStatsData
 
 message RaceData
 {
-  string                      Date       = 1;
-  string                      Track      = 2;
-  map<int32, ResultData>      Grid       = 3; // key is driver iracing id
-  map<string, GroupStatsData> GroupStats = 4; // key is group
+  int32                       SubsessionID = 1;
+  string                      Date         = 2;
+  string                      Track        = 3;
+  map<int32, ResultData>      Grid         = 4; // key is driver iracing id
+  map<string, GroupStatsData> GroupStats   = 5; // key is group
 }
 
 message EventData
@@ -213,12 +236,13 @@ message EventData
 
 message EventResultData
 {
-  int32                    StrengthOfField    = 1;
-  string                   URL                = 2;
-  map<string, int32>       StrengthOfCategory = 3; // Key is category
-  map<string, int32>       NumCategoryCars    = 4; // Key is category
-  map<string, int32>       NumCategoryLaps    = 5; // Key is category
-  map<int32,EventTeamData> Teams              = 6; // Key is iracing team id
+  int32                    SubsessionID       = 1;
+  int32                    StrengthOfField    = 2;
+  string                   URL                = 3;
+  map<string, int32>       StrengthOfCategory = 4; // Key is category
+  map<string, int32>       NumCategoryCars    = 5; // Key is category
+  map<string, int32>       NumCategoryLaps    = 6; // Key is category
+  map<int32,EventTeamData> Teams              = 7; // Key is iracing team id
 }
 
 message EventTeamData
@@ -226,13 +250,15 @@ message EventTeamData
   string                   Name                  = 1;
   string                   Category              = 2;
   string                   Car                   = 3;
-  string                   ReasonOut             = 4;
-  int32                    FinishPosition        = 5;
-  int32                    FinishPositionInClass = 6;
-  int32                    TotalIncidents        = 7;
-  int32                    TotalLapsComplete     = 8;
-  int32                    Owner                 = 9;
-  map<int32, DriverData>   Drivers               = 10;  // Key is driver iracing id
-  map<int32, MemberData>   Members               = 11; // Key is driver iracing id
+  int32                    CarNumber             = 4;
+  string                   ReasonOut             = 5;
+  int32                    FinishPosition        = 6;
+  int32                    FinishPositionInClass = 7;
+  int32                    TotalIncidents        = 8;
+  int32                    TotalLapsComplete     = 9;
+  int32                    Owner                 = 10;
+  map<int32, DriverData>   Drivers               = 11; // Key is driver iracing id
+  map<int32, MemberData>   Members               = 12; // Key is driver iracing id
+  repeated LapData         Laps                  = 13;
 }
 

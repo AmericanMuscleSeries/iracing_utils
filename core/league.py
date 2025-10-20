@@ -12,8 +12,9 @@ from google.protobuf import json_format, text_format
 from iracingdataapi.client import irDataClient
 from trueskill import Rating
 
-from core.objects import GroupRules, LeagueResult, PositionValue, SerializationFormat, serialize_to_string
-from core.objects_pb2 import (GroupRulesData, LeagueConfigurationData,
+from core.objects import GroupRules, LeagueResult, PositionValue, SerializationFormat, serialize_to_string, \
+    InitializeMain
+from core.objects_pb2 import (GroupRulesData, LeagueConfigurationData, PointsMultiplierData,
                               PenaltyData, TimePenaltyData, PointsThresholdData, IncidentPointsData)
 
 _logger = logging.getLogger('log')
@@ -59,6 +60,30 @@ class IncidentPoints:
             return laps_completed > (race_laps - self.minimum_requirement)
 
 
+class PointsMultiplier:
+    __slots__ = ["_race",
+                 "position",
+                 "clean_driver",
+                 "fastest_lap",
+                 "finish_race",
+                 "lead_a_lap",
+                 "most_laps_lead",
+                 "pole_position"]
+
+    def __init__(self, race: int):
+        self._race = race
+        self.position = 1
+        self.clean_driver = 1
+        self.fastest_lap = 1
+        self.finish_race = 1
+        self.pole_position = 1
+        self.lead_a_lap = 1
+        self.most_laps_lead = 1
+
+    @property
+    def race(self): return self._race
+
+
 class ScoringSystem:
     __slots__ = ["minimum_race_distance",
                  "pole_position",
@@ -70,6 +95,7 @@ class ScoringSystem:
                  "separate_pool",
                  "position_value",
                  "_handicap",
+                 "_multipliers"
                  ]
 
     def __init__(self):
@@ -83,9 +109,18 @@ class ScoringSystem:
         self.separate_pool = False
         self.position_value = PositionValue.Overall
         self._handicap = False
+        self._multipliers = {}
 
     @property
     def handicap(self): return self._handicap
+
+    def add_race_multiplier(self, race: int):
+        return self.get_race_multiplier(race)
+
+    def get_race_multiplier(self, race: int):
+        if race not in self._multipliers:
+            self._multipliers[race] = PointsMultiplier(race)
+        return self._multipliers[race]
 
 
 class LinearDecentScoring(ScoringSystem):
@@ -139,7 +174,7 @@ class LeagueConfiguration:
                  "practice_sessions",
                  "group_rules",
                  "time_penalties",
-                 "disqualifications"
+                 "disqualifications",
                  ]
 
     def __init__(self, iracing_id: int, season: str = ""):
@@ -246,14 +281,33 @@ class LeagueConfiguration:
                     return int(member["car_number"])
 
     @staticmethod
-    def fetch_all_season_names(username: str, password: str, league_id: int) -> list:
-        idc = irDataClient(username, password)
+    def fetch_all_season_names(args: InitializeMain, league_id: int) -> list:
+        idc = irDataClient(args.username, args.password)
         ir_league_info = idc.league_get(league_id)  # TODO replace with lg below
         ir_seasons = idc.league_seasons(league_id, True)["seasons"]
         names = []
         for ir_season in ir_seasons:
             names.append(ir_season["season_name"])
         return names
+
+    @staticmethod
+    def fetch_track_count(args: InitializeMain, league_id: int):
+        tracks = dict()
+        idc = irDataClient(args.username, args.password)
+        ir_seasons = idc.league_seasons(league_id, True)["seasons"]
+        _logger.info("Found " + str(len(ir_seasons)) + " seasons")
+        for ir_season in ir_seasons:
+            ir_sessions = idc.league_season_sessions(league_id, ir_season["season_id"], False)["sessions"]
+            for ir_session in ir_sessions:
+                ir_track = ir_session['track']
+                track = f"{ir_track['track_name']}"
+                if "config_name" in ir_track:
+                    track = f"{track} {ir_track['config_name']}"
+                if track not in tracks:
+                    tracks[track] = {"count": 0, "seasons": set()}
+                tracks[track]["count"] += 1
+                tracks[track]["seasons"].add(ir_season["season_name"])
+        return tracks
 
     def fetch_and_score_league(self, username: str, password: str, active: bool = True) -> LeagueResult:
         lg = self.fetch_league_members(username, password)
@@ -262,6 +316,7 @@ class LeagueConfiguration:
         ir_league_info = idc.league_get(self._iracing_id)  # TODO replace with lg below
         ir_seasons = idc.league_seasons(self._iracing_id, True)["seasons"]
         _logger.info("Found " + str(len(ir_seasons)) + " seasons")
+        scoring = self.scoring_system  # alias to shorten lines
         for ir_season in ir_seasons:
             if self._season != ir_season['season_name']:
                 continue
@@ -293,21 +348,28 @@ class LeagueConfiguration:
                 race_num += 1
                 _logger.info("Session " + str(session_num) + " at " + track_name + " is race " + str(race_num))
 
+                # Check to see if its run yet
+                subsession_id = 0
+                if "subsession_id" not in ir_session:
+                    _logger.info("\tRace " + str(race_num) + " at " + track_name + " has not run yet.")
+                else:
+                    subsession_id = ir_session["subsession_id"]
+
                 # Sessions are in UTC time, convert to local
                 utc = datetime.strptime(ir_session["launch_at"], '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=tz.tzutc())
                 race = lg.add_race(race_num,
                                    str(utc.astimezone(tz.gettz('America/New_York'))).split(' ')[0],
-                                   ir_session["track"]["track_name"])
-
-                # Check to see if its run yet
-                if "subsession_id" not in ir_session:
-                    _logger.info("\tRace " + str(race_num) + " at " + track_name + " has not run yet.")
+                                   ir_session["track"]["track_name"], subsession_id)
+                # No subsession means no results, so move on
+                if race.subsession_id == 0:
                     continue
+
                 try:
-                    ir_subsession = idc.result(subsession_id=ir_session["subsession_id"])
+                    ir_subsession = idc.result(subsession_id=subsession_id)
                 except RuntimeError:
                     _logger.error("\tRace " + str(race_num) + " at " + track_name + " is currently running?")
                     continue
+
                 ir_subsession_results = ir_subsession["session_results"]
                 ir_race_results = None
                 for ir_event in ir_subsession_results:
@@ -324,7 +386,9 @@ class LeagueConfiguration:
                 completed_races += 1
                 ir_car_results = ir_race_results["results"]
                 ir_total_laps = ir_car_results[0]["laps_complete"]
+                multiplier = scoring.get_race_multiplier(race.number)
 
+                subsession_drivers = set()  # All drivers that started the race
                 # Figure out the class leader for every lap
                 group_lap_leaders = {}
                 for group in self.group_rules.keys():
@@ -338,6 +402,7 @@ class LeagueConfiguration:
                     if lap_number == 0:
                         continue
                     cust_id = lap["cust_id"]
+                    subsession_drivers.add(cust_id)
                     if cust_id in self.non_drivers:
                         continue
                     position = lap["lap_position"]
@@ -363,7 +428,10 @@ class LeagueConfiguration:
                 # Loop over every driver in this race
                 for ir_car_result in ir_car_results:
                     cust_id = ir_car_result["cust_id"]
-                    if cust_id in self.non_drivers:
+                    if cust_id in self.non_drivers or (cust_id not in subsession_drivers and
+                                                       ir_car_result["incidents"] == 0 and
+                                                       (ir_car_result["reason_out_id"] == 0 or
+                                                        ir_car_result["reason_out_id"] == 34)):
                         non_driver = lg.get_member(cust_id)
                         if non_driver is None:
                             _logger.info(f"Skipping non-driver: {cust_id}")
@@ -394,16 +462,6 @@ class LeagueConfiguration:
                         driver_car_number = int(ir_car_result["livery"]["car_number"])
                         driver.set_car_number(driver_car_number, self.get_group(driver_car_number))
 
-                    """ Counts all car contacts
-                    all_laps = idc.result_lap_data(subsession_id=ir_session["subsession_id"], cust_id=cust_id)
-                    for lap in all_laps:
-                        for event in lap["lap_events"]:
-                            if "contact" in event:
-                                if driver.name not in contacts:
-                                    contacts[driver.name] = 0
-                                contacts[driver.name] += 1
-                    """
-
                     # Don't add dq'd drivers to the race, just promote everyone
                     dq_driver = False
                     for dq in self.disqualifications:
@@ -429,26 +487,44 @@ class LeagueConfiguration:
                     result._completed_race_points = 0
                     result._met_minimum_distance = False
 
-                    if result._laps_completed/ir_total_laps >= self.scoring_system.minimum_race_distance:
+                    # Get all the laps associated with this cust_id
+                    for race_lap in all_laps:
+                        if race_lap["cust_id"] == cust_id:
+                            lap = result.add_lap()
+                            lap._cust_id = cust_id
+                            lap._position = race_lap["lap_position"]
+                            lap._number = race_lap["lap_number"]
+                            lap._time = race_lap["lap_time"]
+                            lap._time_stamp = race_lap["session_time"]
+                        """ Counts all car contacts
+                        for event in lap["lap_events"]:
+                            if "contact" in event:
+                                if driver.name not in contacts:
+                                    contacts[driver.name] = 0
+                                contacts[driver.name] += 1
+                        """
+
+                    if result._laps_completed/ir_total_laps >= scoring.minimum_race_distance:
                         driver._total_completed_races += 1
                         result._met_minimum_distance = True
 
-                        if self.scoring_system.lead_a_lap.satisfied(result._laps_completed, ir_total_laps):
+                        if scoring.lead_a_lap.satisfied(result._laps_completed, ir_total_laps):
                             result._laps_lead = 0 if cust_id not in laps_lead else laps_lead[cust_id]
 
-                        if self.scoring_system.fastest_lap.satisfied(result._laps_completed, ir_total_laps):
+                        if scoring.fastest_lap.satisfied(result._laps_completed, ir_total_laps):
                             result._fastest_lap_time = ir_car_result["best_lap_time"]
 
-                        if self.scoring_system.clean_driver.satisfied(result._laps_completed, ir_total_laps):
-                            if result._incidents in self.scoring_system.clean_driver.point_map:
-                                result._clean_driver_points = self.scoring_system.clean_driver.point_map[result._incidents]
+                        if scoring.clean_driver.satisfied(result._laps_completed, ir_total_laps):
+                            if result._incidents in scoring.clean_driver.point_map:
+                                result._clean_driver_points = scoring.clean_driver.point_map[result._incidents]
+                                result._clean_driver_points *= multiplier.clean_driver
 
-                        if self.scoring_system.finish_race.satisfied(result._laps_completed, ir_total_laps):
-                            result._completed_race_points = self.scoring_system.finish_race.points
+                        if scoring.finish_race.satisfied(result._laps_completed, ir_total_laps):
+                            result._completed_race_points = scoring.finish_race.points * multiplier.finish_race
 
                         if result._laps_lead > 0:
                             driver._total_lead_a_lap += 1
-                            driver._lead_a_lap_points += self.scoring_system.lead_a_lap.points
+                            driver._lead_a_lap_points += scoring.lead_a_lap.points * multiplier.lead_a_lap
 
                     # Increment driver counters
                     driver._total_race_starts += 1
@@ -503,36 +579,38 @@ class LeagueConfiguration:
                     final_group_order[driver.group].append(driver.car_number)
 
                 # Start scoring this race
-                if isinstance(self.scoring_system, LinearDecentScoring):
-                    max_points = self.scoring_system.top_score
+                if isinstance(scoring, LinearDecentScoring):
+                    max_points = scoring.top_score
                     for rr in race.grid.values():
                         driver = lg.get_driver(rr.cust_id)
                         if not rr.met_minimum_distance:
                             rr._points = 0
                             continue
 
-                        if not self.scoring_system.separate_pool:
-                            rr._points = max_points - rr._finish_position+1
+                        if not scoring.separate_pool:
+                            rr._points = (max_points - rr._finish_position+1)
                         else:
-                            if self.scoring_system.position_value == PositionValue.Overall:
+                            if scoring.position_value == PositionValue.Overall:
                                 rr._points = (max_points -
                                               (rr._finish_position - group_overall_winning_position[driver.group]))
 
-                            elif self.scoring_system.position_value == PositionValue.Class:
+                            elif scoring.position_value == PositionValue.Class:
                                 rr._points = (max_points - final_group_order[driver.group].index(driver.car_number))
+                        rr._points *= multiplier.position
 
                         if rr._points < 0:
                             rr._points = 0
                         driver._race_finish_points += rr._points  # Points without bonuses
+
                         if rr.laps_lead > 0:
-                            rr._points += self.scoring_system.lead_a_lap.points
+                            rr._points += scoring.lead_a_lap.points * multiplier.lead_a_lap
                         # Allow leagues to add or separate clean driver points to the race points
-                        if not self.scoring_system.clean_driver.separate_points:
+                        if not scoring.clean_driver.separate_points:
                             rr._points += rr._clean_driver_points
-                        if self.scoring_system.finish_race:
+                        if scoring.finish_race:
                             rr._points += rr._completed_race_points
 
-                elif isinstance(self.scoring_system, AssignmentScoring):
+                elif isinstance(scoring, AssignmentScoring):
                     for rr in race.grid.values():
                         rr._points = 0
                         driver = lg.get_driver(rr.cust_id)
@@ -540,27 +618,28 @@ class LeagueConfiguration:
                             rr._points = 0
                             continue
 
-                        if not self.scoring_system.separate_pool:
-                            if rr._finish_position in self.scoring_system.assignments:
-                                rr._points = self.scoring_system.assignments[rr._finish_position]
+                        if not scoring.separate_pool:
+                            if rr._finish_position in scoring.assignments:
+                                rr._points = scoring.assignments[rr._finish_position]
                         else:
                             scoring_position = 100
-                            if self.scoring_system.position_value == PositionValue.Overall:
+                            if scoring.position_value == PositionValue.Overall:
                                 scoring_position = rr._finish_position - group_overall_winning_position[driver.group]
-                            elif self.scoring_system.position_value == PositionValue.Class:
+                            elif scoring.position_value == PositionValue.Class:
                                 scoring_position = final_group_order[driver.group].index(driver.car_number)
                             scoring_position += 1  # Position assignment start at 1, not 0
 
-                            if scoring_position in self.scoring_system.assignments:
-                                rr._points = self.scoring_system.assignments[scoring_position]
-
+                            if scoring_position in scoring.assignments:
+                                rr._points = scoring.assignments[scoring_position]
+                        rr._points *= multiplier.position
                         driver._race_finish_points += rr._points  # Points without bonuses
+
                         if rr.laps_lead > 0:
-                            rr._points += self.scoring_system.lead_a_lap.points
+                            rr._points += scoring.lead_a_lap.points * multiplier.lead_a_lap
                         # Allow leagues to add or separate clean driver points to the race points
-                        if not self.scoring_system.clean_driver.separate_points:
+                        if not scoring.clean_driver.separate_points:
                             rr._points += rr._clean_driver_points
-                        if self.scoring_system.finish_race:
+                        if scoring.finish_race:
                             rr._points += rr._completed_race_points
 
                 else:
@@ -594,6 +673,7 @@ class LeagueConfiguration:
             # Track group statistics after the season, since we don't know when the final groups are set
             # We will also compute trueskill ratings for each race based on finishing positions
             for race in lg.races.values():
+                multiplier = scoring.get_race_multiplier(race.number)
                 # Find the fastest lap and pole position for every group
 
                 for result in race.grid.values():
@@ -624,10 +704,10 @@ class LeagueConfiguration:
 
                     rr = race.get_result(stat.pole_position_driver)
                     rr._pole_position = True
-                    rr._points += self.scoring_system.pole_position
+                    rr._points += self.scoring_system.pole_position * multiplier.pole_position
                     dvr = lg.get_driver(stat.pole_position_driver)
                     dvr._total_pole_positions += 1
-                    dvr._pole_position_points += self.scoring_system.pole_position
+                    dvr._pole_position_points += self.scoring_system.pole_position * multiplier.pole_position
 
                     rr = race.get_result(stat.fastest_lap_driver)
                     if rr is None:
@@ -635,17 +715,17 @@ class LeagueConfiguration:
                         # You can have a race where noone sets a legal lap....
                     else:
                         rr._fastest_lap = True
-                        rr._points += self.scoring_system.fastest_lap.points
+                        rr._points += self.scoring_system.fastest_lap.points * multiplier.fastest_lap
                         dvr = lg.get_driver(stat.fastest_lap_driver)
                         dvr._total_fastest_laps += 1
-                        dvr._fastest_lap_points += self.scoring_system.fastest_lap.points
+                        dvr._fastest_lap_points += self.scoring_system.fastest_lap.points * multiplier.fastest_lap
 
                     rr = race.get_result(stat.most_laps_lead_driver)
                     rr._most_laps_lead = True
-                    rr._points += self.scoring_system.most_laps_lead.points
+                    rr._points += self.scoring_system.most_laps_lead.points * multiplier.most_laps_lead
                     dvr = lg.get_driver(stat.most_laps_lead_driver)
                     dvr._total_most_laps_lead += 1
-                    dvr._most_laps_lead_points += self.scoring_system.most_laps_lead.points
+                    dvr._most_laps_lead_points += self.scoring_system.most_laps_lead.points * multiplier.most_laps_lead
 
             # Score each driver
             points = list()
@@ -731,6 +811,17 @@ def serialize_league_configuration_to_bind(src: LeagueConfiguration, dst: League
     serialize_incident_points_to_bind(src.scoring_system.clean_driver, dst_scoring_system.Base.CleanDriver)
     dst_scoring_system.Base.SeparatePool = src.scoring_system.separate_pool
     dst_scoring_system.Base.PositionValue = src.scoring_system.position_value.value
+    for m in src.scoring_system._multipliers.values():
+        rm = PointsMultiplierData()
+        rm.Race = m.race
+        rm.Position = m.position
+        rm.CleanDriver = m.clean_driver
+        rm.FastestLap = m.fastest_lap
+        rm.FinishRace = m.finish_race
+        rm.LeadALap = m.lead_a_lap
+        rm.MostLapsLead = m.most_laps_lead
+        rm.PolePosition = m.pole_position
+        dst_scoring_system.Base.RaceMultiplier.append(rm)
 
     for cust_id in src.non_drivers:
         dst.NonDrivers.append(cust_id)
@@ -808,6 +899,15 @@ def serialize_league_configuration_from_bind(src: LeagueConfigurationData, dst: 
     serialize_incident_points_from_bind(scoring_base.CleanDriver, scoring.clean_driver)
     scoring.separate_pool = scoring_base.SeparatePool
     scoring.position_value = PositionValue(scoring_base.PositionValue)
+    for m_data in scoring_base.RaceMultiplier:
+        m = scoring.add_race_multiplier(m_data.Race)
+        m.position = m_data.Position
+        m.clean_driver = m_data.CleanDriver
+        m.fastest_lap = m_data.FastestLap
+        m.finish_race = m_data.FinishRace
+        m.lead_a_lap = m_data.LeadALap
+        m.most_laps_lead = m_data.MostLapsLead
+        m.pole_position = m_data.PolePosition
 
     dst.add_non_drivers(src.NonDrivers)
 
