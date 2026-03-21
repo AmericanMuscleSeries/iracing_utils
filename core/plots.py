@@ -1,12 +1,13 @@
 # Distributed under the Apache License, Version 2.0.
 # See accompanying NOTICE file for details.
 
-import json
 import matplotlib
 import matplotlib.pyplot as plt
 from pathlib import Path
 
-from core.objects import serialize_league_result_from_file, LeagueResult, serialize_event_from_file
+from core.clients import Client
+from core.event import add_lap_data
+from core.objects import serialize_league_result_from_file, LeagueResult, serialize_event_from_file, Event
 
 
 def get_lap_positions(lg: LeagueResult, race: int):
@@ -107,8 +108,6 @@ def plot_position_changes(car_positions: list, to: Path, figsize=(16, 8)):
     ax.set_ylabel('Position')
     ax.legend().set_visible(False)
 
-
-
     plt.xticks(range(max_laps))  # add loads of ticks
     plt.gca().margins(x=0)
     plt.gcf().canvas.draw()
@@ -120,7 +119,7 @@ def plot_position_changes(car_positions: list, to: Path, figsize=(16, 8)):
     plt.gcf().subplots_adjust(left=float(margin), right=float(1. - margin))
     plt.gcf().set_size_inches(s, float(plt.gcf().get_size_inches()[1]))
 
-    #plt.grid()
+    # plt.grid()
     plt.tight_layout()
     print(f"Writing image file {to}")
     fig.savefig(to)
@@ -129,42 +128,28 @@ def plot_position_changes(car_positions: list, to: Path, figsize=(16, 8)):
     plt.clf()
 
 
-def main():
+def plot_event_split(event: Event, split: int, category: str):
 
-    # Plotting an event race
-    nix_keys = []
-    e_filename = Path("./events/Ed Petit Le Mans.json")
-    event = serialize_event_from_file(e_filename)
-    for split, result in event._results.items():
-        owner_teams = result.get_owner_teams(cust_id=180474)
-        if len(owner_teams) > 0:
-            print(f"Plotting position changes for split {split}")
-            categories = set()
-            for team in owner_teams:
-                category = team.category
-                if category in categories:
-                    continue  # Already plotted
-                categories.add(category)
-                print(f"\tPlotting category {category}")
-                car_positions = []
-                for team_id, category_team in result._teams.items():
-                    num = ""
-                    if category_team.category == category:
-                        num = f"{category_team.car_number}"
-                    lap_positions = []
-                    started = True
-                    for i, lap in enumerate(category_team.laps):
-                        if lap.position == 0:
-                            started = False
-                            print("hmmmm")
-                        else:
-                            lap_positions.append((i, lap.position))
-                    if len(lap_positions) > 0 and lap_positions[-1][1] != category_team.finish_position:
-                        lap_positions.append((lap_positions[-1][0], category_team.finish_position))
-                    if started:
-                        car_positions.append((num, lap_positions))
-                img_filename = e_filename.parent / f"{e_filename.stem} Split {split} {category}.png"
-                plot_position_changes(sorted(car_positions, key=lambda x: x[1][0]), img_filename, figsize=(144.0, 8.0))
+    result = event.get_result(split)
+    car_positions = []
+    for team_id, category_team in result._teams.items():
+        num = ""
+        if category_team.category == category:
+            num = f"{category_team.car_number}"
+        lap_positions = []
+        started = True
+        for i, lap in enumerate(category_team.laps):
+            if lap.position == 0:
+                started = False
+                print("hmmmm")
+            else:
+                lap_positions.append((i, lap.position))
+        if len(lap_positions) > 0 and lap_positions[-1][1] != category_team.finish_position:
+            lap_positions.append((lap_positions[-1][0], category_team.finish_position))
+        if started:
+            car_positions.append((num, lap_positions))
+    img_filename = Path("./events") / f"{event.year}_{event.name}_Split_{split}_{category}.png"
+    plot_position_changes(sorted(car_positions, key=lambda x: x[1][0]), img_filename, figsize=(144.0, 8.0))
     """
         else:
             del event._results[split +1]
@@ -172,13 +157,26 @@ def main():
         json.dump(event.as_dict(), fp, indent=2)
     """
 
-    # Plotting a league race
-    lg_filename = Path("./results/American Muscle Series Season 9.json")
-    race = 11
-    lg = serialize_league_result_from_file(lg_filename)
+
+def plot_league_race(league_filename: Path, race: int):
+    lg = serialize_league_result_from_file(league_filename)
     car_positions = get_lap_positions(lg, race)
-    img_filename = lg_filename.parent / f"{lg_filename.stem} Race {race}.png"
+    img_filename = league_filename.parent / f"{league_filename.stem} Race {race}.png"
     plot_position_changes(car_positions, img_filename)
+
+
+def main():
+    client = Client(log_filename="plots.log")
+
+    # plot_league_race(Path("./results/American Muscle Series Season 10.json"), 2)
+
+    event = serialize_event_from_file(Path("./events/2026_Daytona 24.json"))
+    for split, result in event._results.items():
+        owner_teams = result.get_owner_teams(cust_id=180474)
+        if len(owner_teams) > 0:
+            for team in owner_teams:
+                add_lap_data(client.idc, event, [split])
+                plot_event_split(event, split, team.category)
 
 
 if __name__ == "__main__":

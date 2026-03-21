@@ -64,7 +64,10 @@ def trim(league_ratings: dict, season_filename: Path):
     with open(season_filename, 'r') as file:
         season_ledger = LeagueResult.from_dict(json.load(file))
     for cust_id in season_ledger.drivers.keys():
-        season_ratings[cust_id] = league_ratings[cust_id]
+        if cust_id not in league_ratings:
+            print(f"{cust_id} is a new driver")
+        else:
+            season_ratings[cust_id] = league_ratings[cust_id]
     # Sort the league_ratings by rating mu
     driver_rankings = sorted(list(season_ratings.values()), key=lambda d: d["rating"].mu, reverse=True)
     for idx, driver in enumerate(driver_rankings):
@@ -97,13 +100,16 @@ def main():
     out_dir = Path("./ratings")
     todo = ["ams"]  # ["ww-srf", "ww-ff", "ww-fv"]  # , "rnp"]
 
-    def write_ratings(name: str, season_files: list, dst: Path, current_season_idx: int = -1):
+    def write_ratings(name: str, season_files: list, dst: Path, trim_season_file: Path = None):
         ratings = assess_seasons(season_files)
         dst.mkdir(exist_ok=True, parents=True)
         write_ratings_file(ratings, dst/f"{name} League Ratings.txt")
         write_ratings_file(ratings, dst/f"{name} League Ratings.json")
         write_ratings_file(ratings, dst/f"{name} Trimmed League Ratings.txt", sigma_threshold=2.0)
-        current_ratings = trim(ratings, season_files[current_season_idx])
+        if trim_season_file is None:
+            current_ratings = trim(ratings, season_files[-1])
+        else:
+            current_ratings = trim(ratings, trim_season_file)
         write_ratings_file(current_ratings, dst/f"{name} Current Ratings.txt")
 
     for lg in todo:
@@ -115,9 +121,10 @@ def main():
                        Path("./results/American Muscle Series Season 5.json"),
                        Path("./results/American Muscle Series Season 6.json"),
                        Path("./results/American Muscle Series Season 7.json"),
-                       Path("./results/American Muscle Series Season 8.json"),
-                       Path("./results/American Muscle Series Season 9.json")]
-            write_ratings(name="American Muscle Series", season_files=seasons, dst=out_dir/f"{lg}")
+                       Path("./results/American Muscle Series Season 8.json")]
+                       #Path("./results/American Muscle Series Season 9.json")]
+            write_ratings(name="American Muscle Series", season_files=seasons, dst=out_dir/f"{lg}",
+                          trim_season_file=Path("./results/American Muscle Series Season 9.json"))
             continue
 
         if lg == "ww-ff":

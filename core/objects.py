@@ -1,10 +1,11 @@
 # Distributed under the Apache License, Version 2.0.
 # See accompanying NOTICE file for details.
 
-import argparse
 import json
 import logging
-import sys
+import math
+import numpy as np
+import re
 
 from enum import Enum
 from collections import OrderedDict
@@ -16,54 +17,46 @@ from core.objects_pb2 import EventData, LeagueResultData, LapData
 _logger = logging.getLogger('log')
 
 
-class InitializeMain:
-    __slots__ = ["_username", "_password", "_parser"]
+def time2str(minutes: float):
+    num_mins = math.floor(minutes / 60)
+    seconds = minutes - num_mins * 60
+    return f"{num_mins}:{seconds:.3f}"
 
-    def __init__(self, log_filename: str):
-        logging.basicConfig(level=logging.INFO,
-                            format='%(levelname)s: %(message)s',
-                            filename=log_filename,
-                            filemode="w")
-        logging.getLogger('log').setLevel(logging.INFO)
-        logging.getLogger().addHandler(logging.StreamHandler(sys.stdout))
 
-        self._parser = argparse.ArgumentParser()
-        self._parser.add_argument(
-            "username",
-            type=str,
-            help="iracing user name."
-        )
-        self._parser.add_argument(
-            "password",
-            type=str,
-            help="iracing password."
-        )
+def percent_difference(expected: float, calculated: float, epsilon: float = 1e-10):
+    # Check for 'invalid' numbers
+    if np.isnan(expected) or np.isnan(calculated) or np.isinf(expected) or np.isinf(calculated):
+        if (np.isnan(expected) and np.isnan(calculated)) or (np.isinf(expected) and np.isinf(calculated)):
+            return 0.0
+        return np.nan
 
-        self._username = None
-        self._password = None
+    # Special cases
+    if expected == 0.0 and calculated == 0.0:
+        return 0.0
+    elif expected == 0.0 or calculated == 0.0:
+        if abs(expected + calculated) < epsilon:
+            return 0.0
+        else:
+            return 200.0
+    else:
+        difference = calculated - expected
+        average = (calculated + expected) / 2.0
 
-    def parse_args(self):
-        opts = self._parser.parse_args()
-        self._username = opts.username
-        self._password = opts.password
-        return opts
+        if average == 0.0:
+            return float('inf')
 
-    @property
-    def username(self): return self._username
-
-    @property
-    def password(self): return self._password
+        return abs(difference / average) * 100.0
 
 
 class GroupRules:
     __slots__ = ["min_car_number",
                  "max_car_number",
-                 "num_drops"]
+                 "races_counted"]
 
-    def __init__(self, min_car_number: int, max_car_number: int, num_drops: int):
+    def __init__(self, min_car_number: int, max_car_number: int, races_counted: int):
         self.min_car_number = min_car_number
         self.max_car_number = max_car_number
-        self.num_drops = num_drops
+        self.races_counted = races_counted
 
 
 class SerializationFormat(Enum):
@@ -101,6 +94,16 @@ class LeagueResult:
         else:
             _logger.warning("Member " + name + " already exists.")
         return self.members[cust_id]
+
+    def get_cust_id(self, name, clean_nums: bool = False) -> int | None:
+        for cust_id, member in self.members.items():
+            if member.name == name:
+                return cust_id
+            if clean_nums and bool(re.search(r'\d', member.name)):
+                no_num = re.sub(r'\d+', '', member.name)
+                if no_num == name:
+                    return cust_id
+        return None
 
     def get_member(self, cust_id: int):
         if cust_id not in self.members:
@@ -180,9 +183,14 @@ class Driver:
                  "_lead_a_lap_points",
                  "_total_most_laps_lead",
                  "_most_laps_lead_points",
+                 # Clean Laps
+                 "_total_clean_laps",
+                 "_clean_laps_points",
                  # Fast Laps
                  "_total_fastest_laps",
                  "_fastest_lap_points",
+                 "_total_fast_clean_laps",
+                 "_fast_clean_laps_points",
                  # Trueskill
                  "_mu", "_sigma"]
 
@@ -215,9 +223,14 @@ class Driver:
         self._lead_a_lap_points = 0
         self._total_most_laps_lead = 0
         self._most_laps_lead_points = 0
+        # CleanLaps
+        self._total_clean_laps = 0
+        self._clean_laps_points = 0
         # Fast Laps
         self._total_fastest_laps = 0
         self._fastest_lap_points = 0
+        self._total_fast_clean_laps = 0
+        self._fast_clean_laps_points = 0
         # Trueskill
         self._mu = 25
         self._sigma = 0.83333
@@ -295,10 +308,22 @@ class Driver:
     def most_laps_lead_points(self): return self._most_laps_lead_points
 
     @property
+    def total_clean_laps(self): return self._total_clean_laps
+
+    @property
+    def clean_laps_points(self): return self._clean_laps_points
+
+    @property
     def total_fastest_laps(self): return self._total_fastest_laps
 
     @property
     def fastest_lap_points(self): return self._fastest_lap_points
+
+    @property
+    def total_fast_clean_laps(self): return self._total_fast_clean_laps
+
+    @property
+    def fast_clean_laps_points(self): return self._fast_clean_laps_points
 
     @property
     def mu(self): return self._mu
@@ -326,6 +351,7 @@ class GroupStats:
                  "_winning_driver",
                  "_fastest_lap_driver",
                  "_fastest_lap_time",
+                 "_fastest_lap_time_stamp",
                  "_most_laps_lead_driver",
                  "_most_laps_lead",
                  "lead_a_lap_drivers"]
@@ -339,6 +365,7 @@ class GroupStats:
         self._winning_driver = None
         self._fastest_lap_driver = None
         self._fastest_lap_time = 10000000
+        self._fastest_lap_time_stamp = None
         self._most_laps_lead_driver = None
         self._most_laps_lead = 0
         self.lead_a_lap_drivers = []
@@ -386,6 +413,9 @@ class GroupStats:
 
     @property
     def fastest_lap_time(self): return self._fastest_lap_time
+
+    @property
+    def fastest_lap_time_stamp(self): return self._fastest_lap_time_stamp
 
     @property
     def most_laps_lead_driver(self): return self._most_laps_lead_driver
@@ -455,20 +485,27 @@ class Race:
 
 class Lap:
     __slots__ = ["_cust_id",
+                 "_clean",
                  "_position",
                  "_number",
                  "_time",
-                 "_time_stamp"]
+                 "_time_stamp",
+                 "_session_time"]
 
     def __init__(self):
         self._cust_id = None
+        self._clean = False
         self._position = None
         self._number = None
         self._time = None
         self._time_stamp = None
+        self._session_time = None
 
     @property
     def cust_id(self): return self._cust_id
+
+    @property
+    def clean(self): return self._clean
 
     @property
     def position(self): return self._position
@@ -482,9 +519,13 @@ class Lap:
     @property
     def time_stamp(self): return self._time_stamp
 
+    @property
+    def session_time(self): return self._session_time
+
 
 class Result:
     __slots__ = ["_cust_id",
+                 "_car",
                  "_met_minimum_distance",
                  "_pole_position",
                  "_fastest_lap",
@@ -498,35 +539,49 @@ class Result:
                  "_interval",
                  "_incidents",
                  "_laps_completed",
+                 "_clean_laps",
+                 "_clean_laps_points",
                  "_laps_lead",
                  "_most_laps_lead",
                  "_fastest_lap_time",
+                 "_fastest_lap_time_stamp",
+                 "_fast_clean_laps",
+                 "_fast_clean_laps_points",
                  "_mu", "_sigma",
                  "laps"]
 
     def __init__(self, cust_id: int):
         self._cust_id = cust_id
+        self._car = ""
         self._met_minimum_distance = False
         self._pole_position = False
         self._fastest_lap = False
-        self._start_position = None
-        self._finish_position = None
-        self._interval = None
-        self._points = None
-        self._handicap_points = None
-        self._clean_driver_points = None
-        self._completed_race_points = None
-        self._incidents = None
-        self._laps_completed = None
-        self._laps_lead = None
+        self._start_position = 0
+        self._finish_position = 0
+        self._interval = 0
+        self._points = 0
+        self._handicap_points = 0
+        self._clean_driver_points = 0
+        self._completed_race_points = 0
+        self._incidents = 0
+        self._laps_completed = 0
+        self._clean_laps = 0
+        self._clean_laps_points = 0
+        self._laps_lead = 0
         self._most_laps_lead = False
         self._fastest_lap_time = None
+        self._fastest_lap_time_stamp = None
+        self._fast_clean_laps = 0
+        self._fast_clean_laps_points = 0
         self._mu = 0
         self._sigma = 0
         self.laps = []
 
     @property
     def cust_id(self): return self._cust_id
+
+    @property
+    def car(self): return self._car
 
     @property
     def met_minimum_distance(self): return self._met_minimum_distance
@@ -565,6 +620,12 @@ class Result:
     def laps_completed(self): return self._laps_completed
 
     @property
+    def clean_laps(self): return self._clean_laps
+
+    @property
+    def clean_laps_points(self): return self._clean_laps_points
+
+    @property
     def laps_lead(self): return self._laps_lead
 
     @property
@@ -572,6 +633,16 @@ class Result:
 
     @property
     def fastest_lap_time(self): return self._fastest_lap_time
+
+    @property
+    def fastest_lap_time_stamp(self): return self._fastest_lap_time_stamp
+
+    @property
+    def fast_clean_laps(self): return self._fast_clean_laps
+
+    @property
+    def fast_clean_laps_points(self): return self._fast_clean_laps_points
+
 
     @property
     def mu(self): return self._mu
@@ -586,10 +657,11 @@ class Result:
 
 
 class Event:
-    __slots__ = ["_name", "_is_multiclass", "_num_splits", "_results", "team_owners"]
+    __slots__ = ["_name", "_year", "_is_multiclass", "_num_splits", "_results", "team_owners"]
 
-    def __init__(self, name: str):
+    def __init__(self, name: str, year: int):
         self._name = name
+        self._year = year
         self._num_splits = 0
         self._is_multiclass = None
         self._results = OrderedDict()
@@ -606,6 +678,9 @@ class Event:
 
     @property
     def name(self): return self._name
+
+    @property
+    def year(self): return self._year
 
     @property
     def num_splits(self): return self._num_splits
@@ -893,6 +968,7 @@ def serialize_league_result_to_string(src: LeagueResult, fmt: SerializationForma
 
         for cust_id, result in race.grid.items():
             results_data = race_data.Grid[cust_id]
+            results_data.Car = result.car
             results_data.MetMinimumDistance = result.met_minimum_distance
             results_data.PolePosition = result.pole_position
             results_data.FastestLap = result.fastest_lap
@@ -907,14 +983,17 @@ def serialize_league_result_to_string(src: LeagueResult, fmt: SerializationForma
             results_data.LapsCompleted = result.laps_completed
             results_data.LapsLead = result.laps_lead
             results_data.MostLapsLead = result.most_laps_lead
-            results_data.FastestLapTime = result.fastest_lap_time
+            if result.fastest_lap_time:
+                results_data.FastestLapTime = result.fastest_lap_time
             for lap in result.laps:
                 lap_data = LapData()
                 lap_data.Driver = lap.cust_id
                 lap_data.Number = lap.number
                 lap_data.Position = lap.position
                 lap_data.Time = lap.time
-                lap_data.TimeStamp = lap.time_stamp
+                if lap.time_stamp:
+                    lap_data.TimeStamp = lap.time_stamp
+                lap_data.Clean = lap.clean
                 results_data.Laps.append(lap_data)
             results_data.Mu = result.mu
             results_data.Sigma = result.sigma
@@ -994,6 +1073,7 @@ def serialize_league_result_data_from_bind(src: LeagueResultData, dst: LeagueRes
             stats._winning_driver = group_stats_data.WinningDriver
             stats._fastest_lap_driver = group_stats_data.FastestLapDriver
             stats._fastest_lap_time = group_stats_data.FastestLapTime
+            stats._fastest_lap_time_stamp = group_stats_data.FastestLapTimeStamp
             stats._most_laps_lead_driver = group_stats_data.MostLapsLeadDriver
             stats._most_laps_lead = group_stats_data.MostLapsLead
             for cust_id in group_stats_data.LapsLeadDrivers:
@@ -1002,6 +1082,7 @@ def serialize_league_result_data_from_bind(src: LeagueResultData, dst: LeagueRes
         for cust_id, result_data in race_data.Grid.items():
             result = race.add_result(cust_id)
             result._cust_id = cust_id
+            result._car = result_data.Car
             result._pole_position = result_data.PolePosition
             result._fastest_lap = result_data.FastestLap
             result._start_position = result_data.StartPosition
@@ -1015,14 +1096,17 @@ def serialize_league_result_data_from_bind(src: LeagueResultData, dst: LeagueRes
             result._laps_lead = result_data.LapsLead
             result._most_laps_lead = result_data.MostLapsLead
             result._fastest_lap_time = result_data.FastestLapTime
+            result._fastest_lap_time_stamp = result_data.FastestLapTimeStamp
             # Laps
             for lap_data in result_data.Laps:
                 lap = result.add_lap()
                 lap._cust_id = lap_data.Driver
                 lap._number = lap_data.Number
                 lap._position = lap_data.Position
+                lap._clean = lap_data.Clean
                 lap._time = lap_data.Time
                 lap._time_stamp = lap_data.TimeStamp
+                lap._session_time = lap_data.SessionTime
             result._mu = result_data.Mu
             result._sigma = result_data.Sigma
 
@@ -1030,6 +1114,7 @@ def serialize_league_result_data_from_bind(src: LeagueResultData, dst: LeagueRes
 def serialize_event_to_string(src: Event, fmt: SerializationFormat) -> str:
     dst = EventData()
     dst.Name = src.name
+    dst.Year = src.year
     dst.IsMulticlass = src.is_multiclass
     dst.NumSplits = src.num_splits
 
@@ -1064,8 +1149,11 @@ def serialize_event_to_string(src: Event, fmt: SerializationFormat) -> str:
                 lap_data.Driver = lap.cust_id
                 lap_data.Number = lap.number
                 lap_data.Position = lap.position
+                lap_data.Clean = lap.clean
                 lap_data.Time = lap.time
-                lap_data.TimeStamp = lap.time_stamp
+                if lap.time_stamp:
+                    lap_data.TimeStamp = lap.time_stamp
+                lap_data.SessionTime = lap.session_time
                 team_data.Laps.append(lap_data)
 
             for cust_id, driver in team._drivers.items():
@@ -1099,7 +1187,7 @@ def serialize_event_from_string(src: str, fmt: SerializationFormat) -> Event:
         text_format.Parse(src, event_data)
     else:
         event_data.ParseFromString(src)
-    dst = Event(event_data.Name)
+    dst = Event(event_data.Name, event_data.Year)
     serialize_event_data_from_bind(event_data, dst)
     return dst
 
@@ -1134,6 +1222,7 @@ def serialize_event_data_from_bind(src: EventData, dst: Event):
                 lap._position = lap_data.Position
                 lap._time = lap_data.Time
                 lap._time_stamp = lap_data.TimeStamp
+                lap._clean = lap_data.Clean
 
             for cust_id, driver_data in team_data.Drivers.items():
                 driver = team.add_driver(cust_id, driver_data.Name)

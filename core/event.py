@@ -1,11 +1,13 @@
 # Distributed under the Apache License, Version 2.0.
 # See accompanying NOTICE file for details.
 
-import sys
-import time
+import dataframe_image as dfi
+import json
 import logging
 import pandas as pd
-import dataframe_image as dfi
+import pickle
+import sys
+import time
 
 from pathlib import Path
 
@@ -29,6 +31,12 @@ def list_events(idc: irDataClient, year: int):
 
 
 def pull_event(idc: irDataClient, series_name: str, year: int, detailed_team: bool = False, log: bool = False) -> Event:
+
+    event_ir_directory = Path(f"./events/{year}_{series_name}_iR")
+    teams_directory = event_ir_directory / "teams"
+    teams_directory.mkdir(exist_ok=True, parents=True)
+
+    # Find the event
     ir_series_stats = idc.series_stats()
     event_season = None
     for ir_series in ir_series_stats:
@@ -36,42 +44,47 @@ def pull_event(idc: irDataClient, series_name: str, year: int, detailed_team: bo
             for season in ir_series["seasons"]:
                 if season["season_year"] == year:
                     event_season = season
-
+                    break
     if event_season is None:
         _logger.error(f"Unable to find series: {series_name} in year {year}")
         return None
+
+    # Grab all the event data we need from iracing, cache for quicker rerunning
     ir_races = idc.result_season_results(event_season["season_id"], 5)
+    event_splits_filename = event_ir_directory / "splits.json"
+    if not event_splits_filename.exists():
+        _logger.info(f"Pulling {series_name} data from iracing...")
+        splits = []
+        for ir_result in ir_races["results_list"]:
+            # Get the event race result
+            ir_subsession = idc.result(subsession_id=ir_result["subsession_id"])["session_results"]
+            ir_race_results = None
+            for ir_event in ir_subsession:
+                if ir_event["simsession_type"] == 6:
+                    ir_race_results = ir_event
+            if ir_race_results is None:
+                _logger.error("Session " + ir_result["subsession_id"] + " did not have a race.")
+                continue
+            splits.append((ir_result["event_strength_of_field"], ir_result, ir_race_results))
+        # Sort splits by sof
+        splits.sort(key=lambda tup: tup[0], reverse=True)
+        with open(event_splits_filename, 'w') as fp:
+            json.dump(splits, fp, indent=2)
+    else:
+        with open(event_splits_filename) as fp:
+            splits = json.load(fp)
 
-    # Grab all the event data we need from iracing
-    _logger.info(f"Pulling {series_name} data from iracing...")
-    splits = []
-    for ir_result in ir_races["results_list"]:
-        # Get the event race result
-        ir_subsession = idc.result(subsession_id=ir_result["subsession_id"])["session_results"]
-        ir_race_results = None
-        for ir_event in ir_subsession:
-            if ir_event["simsession_type"] == 6:
-                ir_race_results = ir_event
-        if ir_race_results is None:
-            _logger.error("Session " + ir_result["subsession_id"] + " did not have a race.")
-            continue
-        splits.append((ir_result["event_strength_of_field"], ir_result, ir_race_results))
-
-    event = Event(series_name)
+    event = Event(series_name, year)
     event._is_multiclass = len(event_season["car_classes"]) > 1
     event._num_splits = len(splits)
-    # Sort splits by sof
-    splits.sort(key=lambda tup: tup[0], reverse=True)
-    _logger.info("There were " + str(event.num_splits) + " splits.")
+    _logger.info(f"There were {len(splits)} splits.")
 
     split = 0
-
     for sof, ir_result, ir_race_results in splits:
         split += 1
         num_teams = len(ir_race_results["results"])
-        _logger.info(f"Pulling the members from {num_teams} teams for split {split}")
+        _logger.info(f"Pulling results for split {split} that had {num_teams} teams")
         result = event.add_result(split, ir_result["event_strength_of_field"], ir_result["subsession_id"])
-        all_laps = idc.result_lap_chart_data(subsession_id=ir_result["subsession_id"])
 
         for car_class in ir_result["car_classes"]:
             result.add_category(car_class["short_name"], car_class["strength_of_field"])
@@ -89,14 +102,7 @@ def pull_event(idc: irDataClient, series_name: str, year: int, detailed_team: bo
             team._finish_position_in_class = ir_team_result["finish_position_in_class"]+1
             team._total_laps_complete = ir_team_result["laps_complete"]
             team._total_incidents = ir_team_result["incidents"]
-            for race_lap in all_laps:
-                if race_lap["group_id"] == team.id:
-                    lap = team.add_lap()
-                    lap._cust_id = race_lap["cust_id"]
-                    lap._position = race_lap["lap_position"]
-                    lap._number = race_lap["lap_number"]
-                    lap._time = race_lap["lap_time"]
-                    lap._time_stamp = race_lap["session_time"]
+
             if log:
                 _logger.info(f"\tTeam: {team.name}, Class: {team.category}, Car: {team.car}")
             # Add team members
@@ -119,14 +125,59 @@ def pull_event(idc: irDataClient, series_name: str, year: int, detailed_team: bo
                 # If they crash and quit before all scheduled drivers drove a lap,
                 # They will not be in the driver list
                 # So we also pull the official team member list, which can be very long...
-                time.sleep(0.01)  # So many calls makes iracing mad...
-                ir_team = idc.team(ir_team_result["team_id"])
+                # So we cache team members to a separate file, so we don't have to pull as much
+                save_json = False
+                team_filename = teams_directory / f"{ir_team_result['team_id']}.json"
+                if team_filename.exists():
+                    with open(team_filename) as fp:
+                        ir_team = json.load(fp)
+                else:
+                    save_json = True
+                    time.sleep(0.01)  # So many calls makes iracing mad...
+                    _logger.info(f"Pulling team members for {ir_team_result['display_name']}")
+                    ir_team = idc.team(ir_team_result["team_id"])
+                    ir_team = {k: ir_team[k] for k in ["owner_id", "roster"] if k in ir_team}
+                    ir_team["display_name"] = ir_team_result['display_name']
+
                 team._owner = ir_team["owner_id"]
                 if not team._owner:
                     _logger.error(f"Team {ir_team_result['display_name']} has no owner?")
                 for ir_member in ir_team["roster"]:
+                    if save_json:
+                        del ir_member["helmet"]
                     team.add_member(ir_member["cust_id"], ir_member["display_name"])
+
+                if save_json:
+                    with open(team_filename, 'w') as fp:
+                        json.dump(ir_team, fp, indent=2)
     return event
+
+
+def add_lap_data(idc: irDataClient, event: Event, splits: list):
+
+    event_ir_directory = Path(f"./events/{event.year}_{event.name}_iR")
+    laps_directory = event_ir_directory / "laps"
+    laps_directory.mkdir(exist_ok=True, parents=True)
+
+    for split in splits:
+        result = event.get_result(split)
+
+        ir_laps_filename = laps_directory / f"{result.subsession_id}.pkl"
+        if not ir_laps_filename.exists():
+            ir_lap_chart = idc.result_lap_chart_data(subsession_id=result.subsession_id)
+            with open(ir_laps_filename, 'wb') as fp:
+                pickle.dump(ir_lap_chart, fp)
+        else:
+            with open(laps_directory / f"{result.subsession_id}.pkl", 'rb') as fp:
+                ir_lap_chart = pickle.load(fp)
+        for ir_race_lap in ir_lap_chart:
+            team = result.get_team(ir_race_lap["group_id"])
+            lap = team.add_lap()
+            lap._cust_id = ir_race_lap["cust_id"]
+            lap._position = ir_race_lap["lap_position"]
+            lap._number = ir_race_lap["lap_number"]
+            lap._time = ir_race_lap["lap_time"]
+            lap._session_time = ir_race_lap["session_time"]
 
 
 def _create_report(basename: Path, data, fields, headings, widths=[]):
@@ -153,7 +204,7 @@ def _create_report(basename: Path, data, fields, headings, widths=[]):
     dfi.export(df_styler, img_filename, table_conversion='playwright', dpi=300, max_rows=200)
 
 
-def report_splits(idc: irDataClient, event: Event, output_dir: Path = "./"):
+def report_splits(event: Event, output_dir: Path = "./"):
     data = []
     owners = {}
     headings = [f"Split / {event.num_splits}",
@@ -205,7 +256,7 @@ def report_splits(idc: irDataClient, event: Event, output_dir: Path = "./"):
                      e_podium))
 
     output_dir.mkdir(exist_ok=True)
-    _create_report(basename=output_dir / f"{event.name}_Splits", data=data, fields=fields, headings=headings)
+    _create_report(basename=output_dir / f"{event.year}_{event.name}_Splits", data=data, fields=fields, headings=headings)
 
 
 def fetch_and_report_drivers(event: Event, drivers: list, img_name_postfix: str = "", output_dir: Path = "./"):
@@ -289,7 +340,8 @@ def fetch_and_report_drivers(event: Event, drivers: list, img_name_postfix: str 
     # Sort our results
     data = sorted(data, key=lambda element: (element[1], element[4]))
     output_dir.mkdir(exist_ok=True)
-    _create_report(basename=output_dir/f"{event.name}{img_name_postfix}", data=data, fields=fields, headings=headings)
+    _create_report(basename=output_dir/f"{event.year}_{event.name}{img_name_postfix}",
+                   data=data, fields=fields, headings=headings)
 
 
 def report_owner_events(idc: irDataClient, owner_id: int, event: Event, output_dir: Path):
@@ -350,5 +402,5 @@ def report_owner_events(idc: irDataClient, owner_id: int, event: Event, output_d
                          f"{event_split.total_laps - team_result.total_laps_complete}",
                          team_result.reason_out
                          ))
-    _create_report(basename=output_dir/f"{owner_name}-{event.name}",
+    _create_report(basename=output_dir/f"{owner_name}_{event.year}-{event.name}",
                    data=data, fields=fields, headings=headings, widths=widths)

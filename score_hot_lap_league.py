@@ -1,18 +1,13 @@
 # Distributed under the Apache License, Version 2.0.
 # See accompanying NOTICE file for details.
 
-import copy
-import csv
 import json
 import logging
 import os
-import re
-
-from iracingdataapi.client import irDataClient
 from pathlib import Path
 
 from core.clients import Client
-from core.league import LeagueConfiguration, LeagueResult
+from core.league import LeagueConfiguration
 from core.sheets import GDrive, SheetsDisplay
 
 _logger = logging.getLogger('log')
@@ -20,14 +15,9 @@ _logger = logging.getLogger('log')
 
 def score_league(client: Client,
                  cfg: LeagueConfiguration,
-                 sheets_display: SheetsDisplay = None,
-                 active: bool = True,
-                 broadcast: bool = True):
-
-    league = cfg.fetch_and_score_league(client.idc, active)
-
-    # print_debug_stats(league, 609455)
-    # print_debug_stats(league, 120570)
+                 g612ir: dict,
+                 sheets_display: SheetsDisplay):
+    league = cfg.fetch_and_score_hot_lap_league(client.idc, client.g61, g612ir)
 
     results_dir = Path("./results")
     results_dir.mkdir(exist_ok=True)
@@ -38,8 +28,6 @@ def score_league(client: Client,
     # Dump the dict to json
     with open(filename, 'w') as fp:
         json.dump(d, fp, indent=2)
-    if broadcast:
-        broadcast_standings(cfg, league, results_dir)
 
     # Push our results up to our sheets
     if sheets_display is not None and client.google_credentials_filename.exists():
@@ -69,43 +57,3 @@ def score_league(client: Client,
         print("Could not find credentials file. Not pushing to sheets.")
 
 
-def broadcast_standings(cfg: LeagueConfiguration, lg: LeagueResult, out_dir: Path):
-
-    headers = [
-        "First name", "Last name", "Suffix", "Multicar team name", "Club name", "iRacing ID", "Car number",
-        "Multicar team background color", "iRacing car color", "iRacing car number color", "iRacing car number color 2",
-        "iRacing car number color 3", "iRacing car number font ID", "iRacing car number style",
-        "Points before weekend", "Points earned", "Bonus points", "Points after weekend"
-    ]
-    data = ["First name", "Last name", "", "", "", "iRacindID", "CarNumber",
-            "Transparent", "Transparent", "Transparent", "Transparent", "Transparent",
-            "0", "0", "0", "0", "0", "0"]
-
-    def pull_class(c: str, lr: LeagueResult):
-        class_standings = []
-        for iRid, driver in lr.drivers.items():
-            if driver.group != c:
-                continue
-
-            # Split name, and remove numbers
-            clean_name = re.sub(r"\d+", "", driver.name)
-            names = clean_name.split(" ")
-
-            d = copy.deepcopy(data)
-            d[0] = names[0]
-            d[1] = names[-1]
-            d[5] = iRid
-            d[6] = driver.car_number
-            d[14] = driver.earned_points - driver.drop_points
-            d[17] = driver.earned_points - driver.drop_points
-            class_standings.append(d)
-        class_standings.sort(key=lambda x: x[-1], reverse=True)
-        class_standings.insert(0, headers)
-        return class_standings
-
-    for group in cfg.group_rules.keys():
-        standings = pull_class(group, lg)
-        filename = out_dir / f"{cfg.name} {cfg.season} {group}.csv"
-        with open(filename, 'w', newline='') as f:
-            writer = csv.writer(f)
-            writer.writerows(standings)

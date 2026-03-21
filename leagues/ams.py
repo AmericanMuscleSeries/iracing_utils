@@ -1,7 +1,8 @@
 # Distributed under the Apache License, Version 2.0.
 # See accompanying NOTICE file for details.
 
-from score_league import score_league, InitializeSheets
+from score_league import score_league
+from core.clients import Client
 from core.league import (LeagueConfiguration, GroupRules,
                          serialize_league_configuration_to_string, serialize_league_configuration_from_string)
 from core.objects import Driver, LeagueResult, PositionValue, SerializationFormat
@@ -11,7 +12,7 @@ __league_id = 6810
 
 
 def main():
-    args = InitializeSheets(log_filename="ams.log")
+    args = Client(log_filename="ams.log")
 
     """
     legacy = [get_season_1_cfg(),
@@ -21,15 +22,16 @@ def main():
               get_season_5_cfg(),
               get_season_6_cfg(),
               get_season_7_cfg(),
-              get_season_8_cfgs()]
+              get_season_8_cfgs(),
+              get_season_9_cfgs()]
     for cfgs in legacy:
         for cfg in cfgs:
             score_league(cfg, active=False)
     """
 
-    cfgs = get_season_9_cfgs()
+    cfgs = get_season_10_cfgs()
     for cfg in cfgs:
-        score_league(args, cfg, AMSSheetsDisplay("1OkstOiQPomkSvvfYnjv8gBBgXx9F0L0cQXdXxlqSCuM"))
+        score_league(args, cfg, AMSSheetsDisplay("1gONBb0VYbYOmyw0xUWbHS7hrOYu1XBnMzUrru18B9ho"))
         json = serialize_league_configuration_to_string(cfg, SerializationFormat.JSON)
         serialize_league_configuration_from_string(json, SerializationFormat.JSON)
 
@@ -97,6 +99,68 @@ class AMSSheetsDisplay(SheetsDisplay):
     def race_start_column(self): return 'R'
 
 
+def get_season_10_cfgs() -> list[LeagueConfiguration]:
+    cfgs = []
+    scoring = None
+    num_races_counted = 6
+    for i in range(2):
+        cfg = LeagueConfiguration(iracing_id=__league_id, season="Season 10")
+        if i == 0:
+            scoring = cfg.set_linear_decent_scoring(40, hcp=False)
+            cfg.add_group_rule("All Drivers", GroupRules(0, 299, num_races_counted))
+        elif i == 1:
+            scoring = cfg.set_assignment_scoring(assignments={1: 50, 2: 47, 3: 45, 4: 43, 5: 42,
+                                                              6: 41, 7: 40, 8: 39, 9: 38, 10: 37,
+                                                              11: 36, 12: 35, 13: 34, 14: 33, 15: 32,
+                                                              16: 31, 17: 30, 18: 29, 19: 28, 20: 27,
+                                                              21: 26, 22: 25, 23: 24, 24: 23, 25: 22,
+                                                              26: 21, 27: 20, 28: 19, 29: 18, 30: 17,
+                                                              31: 16, 32: 15, 33: 14, 34: 13, 35: 12,
+                                                              36: 11, 37: 10, 38: 9, 39: 8, 40: 7,
+                                                              41: 6, 42: 5, 43: 4, 44: 3, 45: 2,
+                                                              46: 1},
+                                                 separate_pool=True,
+                                                 position_value=PositionValue.Overall)
+            cfg.add_group_rule("Pro Drivers", GroupRules(0, 99, num_races_counted))
+            cfg.add_group_rule("Ch Drivers", GroupRules(100, 199, num_races_counted))
+            cfg.add_group_rule("Am Drivers", GroupRules(200, 299, num_races_counted))
+
+        if scoring:
+            scoring.pole_position = 1
+            scoring.fastest_lap.points = 1
+            scoring.fastest_lap.minimum_requirement = 0
+            scoring.lead_a_lap.points = 1
+            scoring.lead_a_lap.minimum_requirement = 0
+            scoring.most_laps_lead.points = 0
+            scoring.most_laps_lead.minimum_requirement = 0
+            scoring.clean_driver.point_map = {0: 3,
+                                              1: 2,
+                                              2: 1,
+                                              3: 1,
+                                              4: 1}
+            scoring.clean_driver.minimum_requirement = 0.5
+            scoring.clean_driver.separate_points = True
+
+        # Add non drivers like race control and media personalities
+        cfg.add_non_driver(295683)  # Richey
+        cfg.add_non_driver(345352)  # McGrew
+
+        # Ignore practice races
+        cfg.add_practice_sessions([1])
+
+        # Apply Penalties
+        cfg.add_time_penalty(7, 511982, 5)   # Cicchetti (211)
+        cfg.add_time_penalty(7, 143379, 20)  # Belant (21)
+        cfg.add_time_penalty(7, 142499, 10)  # Fensch (42)
+
+        # Bathurst pit entry line is after the start finish, so you can gain time unfairly on your in lap
+        cfg.override_fastest_lap(8, from_id=143379, to_id=1012907)  # From Belant (21) to Schnackel (23)
+
+        cfgs.append(cfg)
+
+    return cfgs
+
+
 def get_season_9_cfgs() -> list[LeagueConfiguration]:
     cfgs = []
     scoring = None
@@ -157,6 +221,12 @@ def get_season_9_cfgs() -> list[LeagueConfiguration]:
         cfg.add_time_penalty(5, 67967, 5)     # Brooks    (299)
         cfg.add_time_penalty(7, 410773, 5)    # Price     (298)
         cfg.add_time_penalty(8, 565548, 20)   # Powell    (103)
+        # Could not clear some black flags fast enough
+        cfg.override_finish_order(race=12, order=[197, 13, 133, 297, 34, 139, 99, 53, 152, 2, 24, 41, 103, 129, 199,
+                                                  144, 277, 35, 163, 6, 181, 21, 278, 180, 48, 299, 100, 229, 104, 157,
+                                                  228, 83, 218, 69, 23, 136])
+        cfg.override_laps_lead(12, 480781, 0)  # Thompson (133)
+        cfg.override_laps_lead(12, 528770, 1)  # Smith (197)
 
         cfgs.append(cfg)
 

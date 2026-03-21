@@ -21,14 +21,18 @@ class SortBy(Enum):
 
 
 class SheetsDisplay:
-    __slots__ = ["_id", "sort_by"]
+    __slots__ = ["_id", "sort_by", "_sort_idx"]
 
     def __init__(self, sheet_id: str):
         self._id = sheet_id
         self.sort_by = SortBy.ForcedDrops
+        self._sort_idx = None
 
     @property
     def id(self): return self._id
+
+    @property
+    def sort_idx(self): return self._sort_idx
 
     @property
     @abstractmethod
@@ -119,7 +123,9 @@ class GDrive:
                 row = sheets_display.create_row(cust_id, driver, lg)
                 season_values.append(row)
 
-            sort_idx = 2 if sheets_display.sort_by == SortBy.Earned else 3
+            sort_idx = sheets_display.sort_idx
+            if not sort_idx:
+                sort_idx = 2 if sheets_display.sort_by == SortBy.Earned else 3
             season_values = sorted(season_values, key=itemgetter(sort_idx), reverse=True)
             # Pad the rest with blanks
             max_racers = 35
