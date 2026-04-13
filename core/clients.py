@@ -92,7 +92,7 @@ class Client:
         )
         parser.add_argument(
             "-gcr", "--google_credentials",
-            default=Path("./google.credentials.json"),
+            default=Path("./google.svc.credentials.json"),
             type=Path,
             help="Credentials file for connecting to google sheets."
         )

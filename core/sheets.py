@@ -60,8 +60,12 @@ class GDrive:
         self._driver_key = None
         self._drivers_xls = None
         self._driver_sheets = dict()
-        self._gc = gspread.oauth(
-            credentials_filename=credentials_filename)
+        # Use the method you want to use for authentication
+        # https://docs.gspread.org/en/latest/oauth2.html#
+        # self._gc = gspread.oauth(
+        #     credentials_filename=credentials_filename)
+        self._gc = gspread.service_account(
+            filename=credentials_filename)
 
     @staticmethod
     def push_results_to_sheets(lg: LeagueResult, groups: list[str],

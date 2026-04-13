@@ -30,14 +30,12 @@ Here is an [example sheet](
 https://docs.google.com/spreadsheets/d/1jlybjNg8sQGFuwSPrnNvQRq5SrIX73QUbISNVIp3Clk/edit?usp=sharing). 
 If you would like to do this, you will need to make your own [google project](
 https://docs.gspread.org/en/latest/oauth2.html#enable-api-access-for-a-project), and use a project oauth json file as your credentials.
-If you are working within the AMS team, you can be added to our [ams project](
-https://console.cloud.google.com/apis/credentials?project=american-muscle-series).
-To get the required credentials json, goto the project and click `Credentials` under the `APIs & Services`, 
-and click the download arrow on the AMS_Utils row under the `OAuth 2.0 Client IDs` section. 
-This will bring up a dialog where you can download the json file.
-Rename it `credentials.json` and place it in your working directory.
 
-If it's been a while, and you are getting errors connecting
+Then you can [create your credential file](https://docs.gspread.org/en/latest/oauth2.html#) for your authentication type.
+Ensure the proper gsheet api call is used in the sheets.py GDrive constructor.
+Note the argparse section in clients.py for the default credentials filename.
+
+If you are using OAuth, and it's been a while, and you are getting errors connecting
 Delete this file %AppData%\Roaming\gspread\authorized_user.json
 
 ## Session Support
@@ -47,4 +45,10 @@ Delete this file %AppData%\Roaming\gspread\authorized_user.json
 `aussie_pursuit.py` - Uses the iRacing API to analyze a provided session id to calculate penalty times for all cars.
 An aussie pursuit race is a multiclass race where each driver gets a penalty time based on their lap time.
 The intent of the penalties is to time them so that all drivers in all cars all have the ability to cross the finish line at the same time.
+
+## Creating an executable
+
+Using pyinstaller
+cd path/to/your/script/folder
+pyinstaller --onefile your_script_name.py
 
