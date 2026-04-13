@@ -12,7 +12,6 @@ from google.protobuf import json_format, text_format
 from iracingdataapi.client import irDataClient
 from trueskill import Rating
 
-from core.clients import Client
 from core.garage61 import Garage61Client
 from core.objects import GroupRules, LeagueResult, PositionValue, SerializationFormat, serialize_to_string, \
     percent_difference, time2str
@@ -50,6 +49,15 @@ class LapThreshold:
     def __init__(self,):
         self.points = 0
         self.num_laps = 0
+
+
+class Drops:
+    __slots__ = ["num_drops",
+                 "min_races"]
+
+    def __init__(self,):
+        self.num_drops = 0
+        self.min_races = 0
 
 
 class FastLapThreshold(LapThreshold):
@@ -193,6 +201,7 @@ class LeagueConfiguration:
                  "_g61_id",
                  "_name",
                  "_season",
+                 "_num_races",
                  "scoring_system",
                  "non_drivers",
                  "practice_sessions",
@@ -205,11 +214,12 @@ class LeagueConfiguration:
                  "_manual_sessions"
                  ]
 
-    def __init__(self, iracing_id: int, g61_id: str="", season: str = ""):
+    def __init__(self, name: str, iracing_id: int, season: str, num_races: int, g61_id: str = ""):
         self._iracing_id = iracing_id
         self._g61_id = g61_id
-        self._name = None
+        self._name = name
         self._season = season
+        self._num_races = num_races
         self.scoring_system = None
         self.non_drivers = list()
         self.practice_sessions = list()
@@ -241,6 +251,9 @@ class LeagueConfiguration:
 
     @property
     def season(self): return self._season
+
+    @property
+    def num_races(self): return self._num_races
 
     def set_linear_decent_scoring(self, top_score: int,
                                   hcp: bool = False,
@@ -317,8 +330,7 @@ class LeagueConfiguration:
         lg = LeagueResult()
         # Pull everything from iracing
         ir_league_info = idc.league_get(self._iracing_id)
-        self._name = ir_league_info["league_name"]
-        _logger.info("Extracting data from league: " + self._name)
+        _logger.info("Extracting data from league: " + ir_league_info["league_name"])
         _logger.info("There are " + str(len(ir_league_info["roster"])) + " members in this league")
         for ir_member in ir_league_info["roster"]:
             lg.add_member(ir_member["cust_id"], ir_member["display_name"], ir_member["nick_name"])
@@ -335,7 +347,6 @@ class LeagueConfiguration:
 
     @staticmethod
     def fetch_all_season_names(idc: irDataClient, league_id: int) -> list:
-        ir_league_info = idc.league_get(league_id)  # TODO replace with lg below
         ir_seasons = idc.league_seasons(league_id, True)["seasons"]
         names = []
         for ir_season in ir_seasons:
@@ -850,10 +861,23 @@ class LeagueConfiguration:
                 driver._earned_points = sum(points)
                 driver._handicap_points = sum(points) + sum(hcp_points)
                 driver._drop_points = 0
-                races_counted = self.get_group_rules(driver.group).races_counted
-                if len(points) > races_counted:
-                    num_drops = len(points) - races_counted
-                    driver._drop_points = sum(sorted(points)[:num_drops])
+
+                num_drops = self.get_group_rules(driver.group).num_drops
+                min_races_for_drops = self.get_group_rules(driver.group).min_races_for_drops
+                if num_drops > 0:
+                    perform_drops = False
+                    if min_races_for_drops <= 0:
+                        if completed_races == self._num_races:
+                            # It's the last week, so do the drops
+                            perform_drops = True
+                    elif completed_races >= min_races_for_drops:
+                        # We have the minimum number of races to calculate drop points
+                        perform_drops = True
+                        # Unrun races have zero points in the points array, so drop those too
+                        if len(points) > completed_races:
+                            num_drops += len(points) - completed_races
+                    if perform_drops:
+                        driver._drop_points = sum(sorted(points)[:num_drops])
                 if driver.total_completed_races > 0:
                     driver._average_finish = sum(finishing_positions) / len(finishing_positions)
 
@@ -1188,7 +1212,8 @@ def serialize_league_configuration_to_bind(src: LeagueConfiguration, dst: League
         gr.Group = group
         gr.MinCarNumber = rule.min_car_number
         gr.MaxCarNumber = rule.max_car_number
-        gr.RacesCounted = rule.races_counted
+        gr.NumDrops = rule.num_drops
+        gr.MinRacesForDrops = rule.min_races_for_drops
         dst.GroupRule.append(gr)
 
     for dq in src.disqualifications:
@@ -1225,14 +1250,13 @@ def serialize_league_configuration_from_string(src: str, fmt: SerializationForma
         text_format.Parse(src, lrd)
     else:
         lrd.ParseFromString(src)
-    dst = LeagueConfiguration(lrd.iRacingID, lrd.g61ID)
+    dst = LeagueConfiguration(lrd.Name, lrd.iRacingID, lrd.Season, lrd.NumRaces, lrd.g61ID)
     serialize_league_configuration_from_bind(lrd, dst)
     return dst
 
 
 def serialize_league_configuration_from_bind(src: LeagueConfigurationData, dst: LeagueConfiguration):
-    dst._name = src.Name
-    dst._season = src.Season
+    # Name, irID, Season, NumRaces, g61ID are set in dst ctor
 
     scoring = None
     scoring_base = None
@@ -1270,7 +1294,8 @@ def serialize_league_configuration_from_bind(src: LeagueConfigurationData, dst: 
     for group_rule_data in src.GroupRule:
         dst.add_group_rule(group_rule_data.Group, GroupRules(group_rule_data.MinCarNumber,
                                                              group_rule_data.MaxCarNumber,
-                                                             group_rule_data.RacesCounted))
+                                                             group_rule_data.NumDrops,
+                                                             group_rule_data.MinRacesForDrops))
 
     for dq_data in src.Disqualification:
         dst.add_disqualification(dq_data.Race, dq_data.Driver)

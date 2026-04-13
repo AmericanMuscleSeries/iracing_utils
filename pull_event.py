@@ -52,9 +52,9 @@ def main():
     events = [
         # load_event(idc, "Roar Before the 24", year, detailed_team),
         # load_event(idc, "Daytona 24", year, detailed_team),
-        load_event(idc, "Bathurst 12 Hour", year, detailed_team),
+        # load_event(idc, "Bathurst 12 Hour", year, detailed_team),
         # load_event(idc, "12 Hours of Sebring", year, detailed_team),
-        # load_event(idc, "Road America 500", year, detailed_team),
+        load_event(idc, "IMSA Classic 500", year, detailed_team),
         # load_event(idc, "iRacing.com Indy 500 - Fixed", year, detailed_team),
         # load_event(idc, "iRacing.com Indy 500", year, detailed_team),
         # load_event(idc, "4 Hours at Thruxton", year, detailed_team),
@@ -84,7 +84,7 @@ def main():
             d = json.load(fp)
             for key, driver in d.items():
                 ams.add(int(driver["iracing_id"]))
-    cfg = LeagueConfiguration(6810)
+    cfg = LeagueConfiguration(name="AMS", iracing_id=6810, season="n/a", num_races=0)
     lg = cfg.fetch_league_members(idc)
     for lgKey in lg.members.keys():
         ams.add(lgKey)
@@ -92,7 +92,8 @@ def main():
     for event in events:
         # Make a table of the splits and their SOF
         report_splits(event=event, output_dir=output_dir)
-        report_owner_events(idc, owner_id=180474, event=event, output_dir=output_dir)
+        report_owner_events(idc, owner_id=180474, event=event, output_dir=output_dir)  # Ed
+        report_owner_events(idc, owner_id=600173, event=event, output_dir=output_dir)  # Jay
 
         fetch_and_report_drivers(event, list(ams), "-AMS", output_dir=output_dir)
 

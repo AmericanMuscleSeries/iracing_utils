@@ -9,6 +9,7 @@ from core.objects import Driver, LeagueResult, PositionValue, SerializationForma
 from core.sheets import SheetsDisplay
 
 __league_id = 6810
+__league_name = "American Muscle Series"
 
 
 def main():
@@ -33,6 +34,8 @@ def main():
     for cfg in cfgs:
         score_league(args, cfg, AMSSheetsDisplay("1gONBb0VYbYOmyw0xUWbHS7hrOYu1XBnMzUrru18B9ho"))
         json = serialize_league_configuration_to_string(cfg, SerializationFormat.JSON)
+        with open("example.txt", "w") as file:
+            file.write(json)
         serialize_league_configuration_from_string(json, SerializationFormat.JSON)
 
 
@@ -101,14 +104,16 @@ class AMSSheetsDisplay(SheetsDisplay):
 
 def get_season_10_cfgs() -> list[LeagueConfiguration]:
     cfgs = []
-    scoring = None
-    num_races_counted = 6
+    num_races = 14
+    num_drops = 3
+    num_races_for_drops = 7
     for i in range(2):
-        cfg = LeagueConfiguration(iracing_id=__league_id, season="Season 10")
         if i == 0:
+            cfg = LeagueConfiguration(__league_name+" All", iracing_id=__league_id, season="Season 10", num_races=num_races)
             scoring = cfg.set_linear_decent_scoring(40, hcp=False)
-            cfg.add_group_rule("All Drivers", GroupRules(0, 299, num_races_counted))
+            cfg.add_group_rule("All Drivers", GroupRules(0, 299, num_drops, num_races_for_drops))
         elif i == 1:
+            cfg = LeagueConfiguration(__league_name, iracing_id=__league_id, season="Season 10", num_races=num_races)
             scoring = cfg.set_assignment_scoring(assignments={1: 50, 2: 47, 3: 45, 4: 43, 5: 42,
                                                               6: 41, 7: 40, 8: 39, 9: 38, 10: 37,
                                                               11: 36, 12: 35, 13: 34, 14: 33, 15: 32,
@@ -121,9 +126,11 @@ def get_season_10_cfgs() -> list[LeagueConfiguration]:
                                                               46: 1},
                                                  separate_pool=True,
                                                  position_value=PositionValue.Overall)
-            cfg.add_group_rule("Pro Drivers", GroupRules(0, 99, num_races_counted))
-            cfg.add_group_rule("Ch Drivers", GroupRules(100, 199, num_races_counted))
-            cfg.add_group_rule("Am Drivers", GroupRules(200, 299, num_races_counted))
+            cfg.add_group_rule("Pro Drivers", GroupRules(0, 99, num_drops, num_races_for_drops))
+            cfg.add_group_rule("Ch Drivers", GroupRules(100, 199, num_drops, num_races_for_drops))
+            cfg.add_group_rule("Am Drivers", GroupRules(200, 299, num_drops, num_races_for_drops))
+        else:
+            raise IndexError("Unknown configuration")
 
         if scoring:
             scoring.pole_position = 1

@@ -25,7 +25,8 @@ def main():
         "Jeff Schnackel": "Jeffrey Schnackel",
         "Ed Sanchinelli": "Edgar Sanchinelli",
         "James Moore": "Jimmy R Moore",
-        "Michael McCoy": "Michael C McCoy"
+        "Michael McCoy": "Michael C McCoy",
+        "Kevin Parrish": "Kevin M Parrish"
     }
 
     cfg, sheet = get_season_2_cfg()
@@ -87,8 +88,10 @@ class HLHSheetsDisplay(SheetsDisplay):
 
 
 def get_season_2_cfg() -> (LeagueConfiguration, str):
-    cfg = LeagueConfiguration(iracing_id=__league_id,
+    cfg = LeagueConfiguration(name="JBB_HLH",
+                              iracing_id=__league_id,
                               g61_id=__team_name,
+                              num_races=6,
                               season="Hot Lap Heroes S2")
     scoring = cfg.set_assignment_scoring(assignments={1: 25, 2: 18, 3: 15, 4: 12, 5: 10,
                                                       6: 8, 7: 6, 8: 4, 9: 2, 10: 1},

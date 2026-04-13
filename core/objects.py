@@ -51,12 +51,14 @@ def percent_difference(expected: float, calculated: float, epsilon: float = 1e-1
 class GroupRules:
     __slots__ = ["min_car_number",
                  "max_car_number",
-                 "races_counted"]
+                 "num_drops",
+                 "min_races_for_drops"]
 
-    def __init__(self, min_car_number: int, max_car_number: int, races_counted: int):
+    def __init__(self, min_car_number: int, max_car_number: int, num_drops: int, min_races_for_drops: int = 0):
         self.min_car_number = min_car_number
         self.max_car_number = max_car_number
-        self.races_counted = races_counted
+        self.num_drops = num_drops
+        self.min_races_for_drops = min_races_for_drops
 
 
 class SerializationFormat(Enum):
@@ -129,6 +131,13 @@ class LeagueResult:
         if number not in self.races:
             return None
         return self.races[number]
+
+    def num_races_run(self) -> int:
+        run = 0
+        for race in self.races.values():
+            if race.subsession_id != 0:
+                run += 1
+        return run
 
 
 class Member:

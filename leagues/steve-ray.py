@@ -30,10 +30,6 @@ def main():
     legacy = []
     leagues = []
     lt = LeagueType.WW
-    races_counted = 9
-    # TODO Try to make this automagical?
-    if lt == LeagueType.ECR:
-        races_counted = 100  # All
 
     if lt == LeagueType.FF or lt == LeagueType.WW:
         legacy.append((__ff, "2025 S1 FF Weekend Warriors", RaySheets("1YsYm0TRjSjIR1r0EBxUCKq6yyRBgpHFe8F1dXhQAv0k")))
@@ -71,7 +67,7 @@ def main():
               ("Season 2 Group 5B TCR", "5B TCR")],
              RaySheets("1HzKe8K5kYwb50WLppZjsSUgxWlQr_zSiBzKIhil_bFY")]
         for season_group in s[0]:
-            for cfg in _get_ecr_configurations(__ecr, season_group[0], season_group[1], races_counted):
+            for cfg in _get_ecr_configurations(season_group[0], season_group[1]):
                 score_league(client, cfg, s[1])
                 json = serialize_league_configuration_to_string(cfg, SerializationFormat.JSON)
                 serialize_league_configuration_from_string(json, SerializationFormat.JSON)
@@ -98,7 +94,7 @@ def main():
     """
 
     for league in leagues:
-        cfgs = _get_ww_configurations(league[0], league[1], races_counted)
+        cfgs = _get_ww_configurations(league[0], league[1])
         for cfg in cfgs:
             score_league(client, cfg, league[2])
 
@@ -220,7 +216,7 @@ def _pull_all_seasons(league_id: int):
     all_seasons = LeagueConfiguration.fetch_all_season_names(league_id)
 
 
-def _get_ww_configurations(league_id: int, season: str, num_drops: int) -> list[LeagueConfiguration]:
+def _get_ww_configurations(league_id: int, season: str) -> list[LeagueConfiguration]:
 
     def apply_penalties(cfg: LeagueConfiguration):
         if league_id == __ff:
@@ -233,12 +229,14 @@ def _get_ww_configurations(league_id: int, season: str, num_drops: int) -> list[
             if season == "2025S4 WW SRF 10yr Anniversary season":
                 cfg.add_disqualification(1, 59267)  # Perry (97)
 
-    all_cfg = LeagueConfiguration(iracing_id=league_id, season=season)
-    all_cfg.add_group_rule("All Drivers", GroupRules(0, 999, num_drops))
+    num_drops = 3
+    num_races = 12
+    all_cfg = LeagueConfiguration(name="All", iracing_id=league_id, season=season, num_races=num_races)
+    all_cfg.add_group_rule("Drivers", GroupRules(0, 999, num_drops))
     _setup_scoring(all_cfg)
     apply_penalties(all_cfg)
 
-    class_config = LeagueConfiguration(iracing_id=league_id, season=season)
+    class_config = LeagueConfiguration(name="Group", iracing_id=league_id, season=season, num_races=num_races)
     class_config.add_group_rule("S1 Drivers", GroupRules(0, 199, num_drops))
     class_config.add_group_rule("S2 Drivers", GroupRules(200, 899, num_drops))
     class_config.add_group_rule("Masters Drivers", GroupRules(900, 999, num_drops))
@@ -248,8 +246,10 @@ def _get_ww_configurations(league_id: int, season: str, num_drops: int) -> list[
     return [all_cfg, class_config]
 
 
-def _get_ecr_configurations(league_id: int, season: str, group: str, num_drops: int) -> list[LeagueConfiguration]:
-    cfg = LeagueConfiguration(iracing_id=league_id, season=season)
+def _get_ecr_configurations(season: str, group: str) -> list[LeagueConfiguration]:
+    num_drops = 0
+    num_races = 12
+    cfg = LeagueConfiguration(name="ECR", iracing_id=__ecr, season=season, num_races=num_races)
     cfg.add_group_rule(group, GroupRules(0, 999, num_drops))
     _scca_scoring(cfg)
 

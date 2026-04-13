@@ -103,9 +103,10 @@ def broadcast_standings(cfg: LeagueConfiguration, lg: LeagueResult, out_dir: Pat
         class_standings.insert(0, headers)
         return class_standings
 
+    num_races = lg.num_races_run()
     for group in cfg.group_rules.keys():
         standings = pull_class(group, lg)
-        filename = out_dir / f"{cfg.name} {cfg.season} {group}.csv"
+        filename = out_dir / f"{cfg.name} {cfg.season} {group} [r={num_races}].csv"
         with open(filename, 'w', newline='') as f:
             writer = csv.writer(f)
             writer.writerows(standings)

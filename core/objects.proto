@@ -17,10 +17,11 @@ enum ePositionValue
 
 message GroupRulesData
 {
-  string    Group          = 1;
-  int32     MinCarNumber   = 2;
-  int32     MaxCarNumber   = 3;
-  int32     RacesCounted   = 4; // How many races to count for this group (inverse of num drops)
+  string    Group            = 1;
+  int32     MinCarNumber     = 2;
+  int32     MaxCarNumber     = 3;
+  int32     NumDrops         = 4; // How many races to drop in a season
+  int32     MinRacesForDrops = 5; // How many races to run before drops are applied (Value<=0 will apply drops on last week)
 }
 
 message PenaltyData
@@ -127,12 +128,14 @@ message LeagueConfigurationData
   string                        g61ID            = 2;
   string                        Name             = 3;
   string                        Season           = 4;
-  AnyScoringSystemData          ScoringSystem    = 5;
-  repeated int32                NonDrivers       = 6;
-  repeated int32                PracticeSessions = 7;
-  repeated GroupRulesData       GroupRule        = 8;
-  repeated PenaltyData          Disqualification = 9;
-  repeated TimePenaltyData      TimePenalty      = 10;
+  int32                         NumRaces         = 5;
+  string                        GoogleSheet      = 6;
+  AnyScoringSystemData          ScoringSystem    = 7;
+  repeated int32                NonDrivers       = 8;
+  repeated int32                PracticeSessions = 9;
+  repeated GroupRulesData       GroupRule        = 10;
+  repeated PenaltyData          Disqualification = 11;
+  repeated TimePenaltyData      TimePenalty      = 12;
 }
 
 // Data structures for holding iRacing data
