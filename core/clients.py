@@ -1,18 +1,17 @@
 # Distributed under the Apache License, Version 2.0.
 # See accompanying NOTICE file for details.
 
-import argparse
 import base64
 import hashlib
 import json
-import logging
 import requests
-import sys
 import urllib.parse
 
-from core.garage61 import Garage61Client
 from iracingdataapi.client import irDataClient
 from pathlib import Path
+
+from core.garage61 import Garage61Client
+from core.objects import Main
 
 
 def _request_password_limited_token(username: str, password: str, client_id: str, client_secret: str):
@@ -66,24 +65,18 @@ def _request_password_limited_token(username: str, password: str, client_id: str
         raise SystemError("Unsupported Content-Type")
 
 
-class Client:
+class ClientMain(Main):
     __slots__ = ["_idc", "_g61", "_credentials", "_credentials_filename", "_google_credentials_filename"]
 
     def __init__(self, log_filename: str):
-        Path("./logs").mkdir(exist_ok=True, parents=True)
-        logging.basicConfig(level=logging.INFO,
-                            format='%(levelname)s: %(message)s',
-                            filename=f"./logs/{log_filename}",
-                            filemode="w")
-        logging.getLogger('log').setLevel(logging.INFO)
-        logging.getLogger().addHandler(logging.StreamHandler(sys.stdout))
-
-        parser = argparse.ArgumentParser()
         self._idc = None
         self._g61 = None
         self._credentials = None
         self._credentials_filename = None
+        super().__init__(log_filename)
 
+    def add_args(self, parser):
+        super().add_args(parser)
         parser.add_argument(
             "-cr", "--credentials",
             default=Path("./credentials.json"),
@@ -97,14 +90,15 @@ class Client:
             help="Credentials file for connecting to google sheets."
         )
 
-        opts = parser.parse_args()
-        self._credentials_filename = opts.credentials
+    def process_args(self, args):
+        super().process_args(args)
+        self._credentials_filename = args.credentials
         if self._credentials_filename.exists():
             with open(self._credentials_filename, 'r') as file:
                 self._credentials = json.load(file)
         else:
             raise IOError(f"Unable to find credentials file {self._credentials_filename}")
-        self._google_credentials_filename = opts.google_credentials
+        self._google_credentials_filename = args.google_credentials
 
     @property
     def idc(self):

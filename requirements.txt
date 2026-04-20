@@ -7,5 +7,6 @@ pandas
 protobuf
 trueskill
 matplotlib
+pydantic
 python-dateutil
 requests

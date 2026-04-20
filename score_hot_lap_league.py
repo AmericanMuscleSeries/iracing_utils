@@ -6,14 +6,14 @@ import logging
 import os
 from pathlib import Path
 
-from core.clients import Client
+from core.clients import ClientMain
 from core.league import LeagueConfiguration
 from core.sheets import GDrive, SheetsDisplay
 
 _logger = logging.getLogger('log')
 
 
-def score_league(client: Client,
+def score_league(client: ClientMain,
                  cfg: LeagueConfiguration,
                  g612ir: dict,
                  sheets_display: SheetsDisplay):

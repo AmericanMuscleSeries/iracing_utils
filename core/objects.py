@@ -1,11 +1,13 @@
 # Distributed under the Apache License, Version 2.0.
 # See accompanying NOTICE file for details.
 
+import argparse
 import json
 import logging
 import math
 import numpy as np
 import re
+import sys
 
 from enum import Enum
 from collections import OrderedDict
@@ -46,6 +48,28 @@ def percent_difference(expected: float, calculated: float, epsilon: float = 1e-1
             return float('inf')
 
         return abs(difference / average) * 100.0
+
+
+class Main:
+
+    def __init__(self, log_filename: str):
+        Path("./logs").mkdir(exist_ok=True, parents=True)
+        logging.basicConfig(level=logging.INFO,
+                            format='%(levelname)s: %(message)s',
+                            filename=f"./logs/{log_filename}",
+                            filemode="w")
+        logging.getLogger('log').setLevel(logging.INFO)
+        logging.getLogger().addHandler(logging.StreamHandler(sys.stdout))
+
+        parser = argparse.ArgumentParser()
+        self.add_args(parser)
+        self.process_args(parser.parse_args())
+
+    def add_args(self, parser):
+        pass
+
+    def process_args(self, args):
+        pass
 
 
 class GroupRules:

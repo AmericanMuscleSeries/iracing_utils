@@ -11,24 +11,35 @@ import re
 from iracingdataapi.client import irDataClient
 from pathlib import Path
 
-from core.clients import Client
-from core.league import LeagueConfiguration, LeagueResult
+from core.clients import ClientMain
+from core.league import LeagueConfiguration, LeagueResult, serialize_league_configuration_to_string
+from core.objects import serialize_league_result_from_file, serialize_league_result_to_string, SerializationFormat
 from core.sheets import GDrive, SheetsDisplay
 
 _logger = logging.getLogger('log')
 
 
-def score_league(client: Client,
+def score_league(client: ClientMain,
                  cfg: LeagueConfiguration,
                  sheets_display: SheetsDisplay = None,
                  active: bool = True,
                  broadcast: bool = True):
+    # Write out the cfg
+    cfg_dir = Path("./configs")
+    cfg_dir.mkdir(exist_ok=True)
+    filename = cfg_dir / f"{cfg.name} {cfg.season}.cfg.json"
+    print(f"Writing league cfg to {filename}")
+    cfg_str = serialize_league_configuration_to_string(cfg, SerializationFormat.JSON)
+    with open(filename, 'w') as fp:
+        fp.write(cfg_str)
 
+    # Score
     league = cfg.fetch_and_score_league(client.idc, active)
 
     # print_debug_stats(league, 609455)
     # print_debug_stats(league, 120570)
 
+    # Write out the league data
     results_dir = Path("./results")
     results_dir.mkdir(exist_ok=True)
     filename = results_dir / f"{cfg.name} {cfg.season}.json"
@@ -38,6 +49,8 @@ def score_league(client: Client,
     # Dump the dict to json
     with open(filename, 'w') as fp:
         json.dump(d, fp, indent=2)
+
+    # Write broadcast csv
     if broadcast:
         broadcast_standings(cfg, league, results_dir)
 

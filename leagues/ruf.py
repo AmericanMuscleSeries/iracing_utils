@@ -4,7 +4,7 @@
 from score_league import score_league
 from core.league import LeagueConfiguration, GroupRules, PositionValue, \
     serialize_league_configuration_to_string, serialize_league_configuration_from_string
-from core.clients import Client
+from core.clients import ClientMain
 from core.objects import Driver, LeagueResult, SerializationFormat
 from core.sheets import SheetsDisplay
 
@@ -12,7 +12,7 @@ __league_id = 8928
 
 
 def main():
-    client = Client(log_filename="ruf.log")
+    client = ClientMain(log_filename="ruf.log")
 
     cfg = get_season_3_cfg()
     score_league(client, cfg, RUFSheetsDisplay("1CucR19IMBRjEeNsIgMfdaSqtwTmt-IasZyTTrgUJsPU"))

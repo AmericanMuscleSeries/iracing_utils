@@ -5,7 +5,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 from pathlib import Path
 
-from core.clients import Client
+from core.clients import ClientMain
 from core.event import add_lap_data
 from core.objects import serialize_league_result_from_file, LeagueResult, serialize_event_from_file, Event
 
@@ -166,7 +166,7 @@ def plot_league_race(league_filename: Path, race: int):
 
 
 def main():
-    client = Client(log_filename="plots.log")
+    client = ClientMain(log_filename="plots.log")
 
     # plot_league_race(Path("./results/American Muscle Series Season 10.json"), 2)
 

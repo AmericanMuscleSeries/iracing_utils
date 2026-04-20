@@ -2,7 +2,7 @@
 # See accompanying NOTICE file for details.
 
 from score_league import score_league
-from core.clients import Client
+from core.clients import ClientMain
 from core.league import (LeagueConfiguration, GroupRules,
                          serialize_league_configuration_to_string, serialize_league_configuration_from_string)
 from core.objects import Driver, LeagueResult, PositionValue, SerializationFormat
@@ -13,7 +13,7 @@ __league_name = "American Muscle Series"
 
 
 def main():
-    args = Client(log_filename="ams.log")
+    args = ClientMain(log_filename="ams.log")
 
     """
     legacy = [get_season_1_cfg(),

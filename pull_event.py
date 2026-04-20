@@ -6,7 +6,7 @@ import logging
 from pathlib import Path
 from iracingdataapi.client import irDataClient
 
-from core.clients import Client
+from core.clients import ClientMain
 from core.event import pull_event, fetch_and_report_drivers, list_events, report_owner_events, report_splits
 from core.league import LeagueConfiguration
 from core.objects import Event
@@ -41,7 +41,7 @@ def load_event(idc: irDataClient, series_name: str, year: int, detailed_team=Fal
 
 
 def main():
-    idc = Client(log_filename="pull_event.log").idc
+    idc = ClientMain(log_filename="pull_event.log").idc
 
     output_dir = Path("./events")
     output_dir.mkdir(exist_ok=True)

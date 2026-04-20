@@ -4,6 +4,8 @@
 import json
 import logging
 import math
+from pathlib import Path
+
 import trueskill
 
 from datetime import datetime, timedelta
@@ -12,6 +14,7 @@ from google.protobuf import json_format, text_format
 from iracingdataapi.client import irDataClient
 from trueskill import Rating
 
+from core.clients import ClientMain
 from core.garage61 import Garage61Client
 from core.objects import GroupRules, LeagueResult, PositionValue, SerializationFormat, serialize_to_string, \
     percent_difference, time2str
@@ -19,6 +22,44 @@ from core.objects_pb2 import (GroupRulesData, LeagueConfigurationData, PointsMul
                               PenaltyData, TimePenaltyData, PointsThresholdData, IncidentPointsData)
 
 _logger = logging.getLogger('log')
+
+class LeagueMain(ClientMain):
+    __slots__ = ["configs"]
+
+    def __init__(self, log_filename: str):
+        self.configs = []
+        super().__init__(log_filename)
+
+    def add_args(self, parser):
+        super().add_args(parser)
+        parser.add_argument(
+            "-cfg", "--cfg_files",
+            nargs='*',
+            help="Optional list of configuration files"
+        )
+        parser.add_argument(
+            "-tok", "--tokens",
+            nargs='*',
+            help="Optional list of string tokens to search for in all config file names"
+        )
+
+    def process_args(self, args):
+        super().process_args(args)
+        if args.cfg_files:
+            for filename in args.cfg_files:
+                print(f"Opening file: {filename}")
+
+        if args.tokens:
+            config_dir = Path("./config")
+            configs = config_dir.glob("*.cfg.json")
+            for token in args.tokens:
+                for config in configs:
+                    if token in config.stem:
+                        with open(config, 'r') as file:
+                            content = file.read()
+                        self.configs.append(serialize_league_configuration_from_string(content,
+                                                                                       SerializationFormat.JSON))
+
 
 # Note, for our API, use 1 based counting
 # The first race is race 1, not race 0
@@ -202,6 +243,7 @@ class LeagueConfiguration:
                  "_name",
                  "_season",
                  "_num_races",
+                 "google_sheet",
                  "scoring_system",
                  "non_drivers",
                  "practice_sessions",
@@ -220,6 +262,7 @@ class LeagueConfiguration:
         self._name = name
         self._season = season
         self._num_races = num_races
+        self.google_sheet = None
         self.scoring_system = None
         self.non_drivers = list()
         self.practice_sessions = list()
@@ -1170,6 +1213,9 @@ def serialize_league_configuration_to_bind(src: LeagueConfiguration, dst: League
     dst.g61ID = src.g61_id
     dst.Name = src.name
     dst.Season = src.season
+    dst.NumRaces = src.num_races
+    if src.google_sheet:
+        dst.GoogleSheet = src.google_sheet
 
     dst_scoring_system = None
     if isinstance(src.scoring_system, LinearDecentScoring):
@@ -1257,6 +1303,9 @@ def serialize_league_configuration_from_string(src: str, fmt: SerializationForma
 
 def serialize_league_configuration_from_bind(src: LeagueConfigurationData, dst: LeagueConfiguration):
     # Name, irID, Season, NumRaces, g61ID are set in dst ctor
+
+    if src.GoogleSheet:
+        dst.google_sheet = src.GoogleSheet
 
     scoring = None
     scoring_base = None

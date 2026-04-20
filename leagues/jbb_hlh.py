@@ -5,7 +5,7 @@ from datetime import datetime
 from dateutil import tz
 
 from score_hot_lap_league import score_league
-from core.clients import Client
+from core.clients import ClientMain
 from core.league import LeagueConfiguration, GroupRules, PositionValue, \
     serialize_league_configuration_to_string, serialize_league_configuration_from_string
 from core.objects import Driver, LeagueResult, SerializationFormat, time2str
@@ -17,7 +17,7 @@ __team_name = "jbb-hot-lap-heroes"
 
 
 def main():
-    client = Client(log_filename="jbb_hlh.log")
+    client = ClientMain(log_filename="jbb_hlh.log")
 
     # Map of g61 driver names to ir driver names
     # Only need to add names that are different
