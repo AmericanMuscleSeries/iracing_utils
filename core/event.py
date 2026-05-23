@@ -180,7 +180,9 @@ def add_lap_data(idc: irDataClient, event: Event, splits: list):
             lap._session_time = ir_race_lap["session_time"]
 
 
-def _create_report(basename: Path, data, fields, headings, widths=[]):
+def _create_report(basename: Path, data, fields, headings, widths=None):
+    if widths is None:
+        widths = []
     align = []
     for i in range(len(fields)):
         align.append(('^', '^'))
