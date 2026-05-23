@@ -16,6 +16,7 @@ _fv = 6956
 _srf = 1566
 _ecr = 6236
 
+
 class LeagueType(Enum):
     FF = 0
     FV = 1
@@ -23,18 +24,20 @@ class LeagueType(Enum):
     WW = 3
     ECR = 4
 
+
 class SteveRay(LeagueMain):
     __slots__ = ["_lt"]
 
     def __init__(self, log_filename: str):
-        self._lt = LeagueType.SRF
+        self._lt = LeagueType.ECR
         super().__init__(log_filename)
 
     def add_args(self, parser):
         super().add_args(parser)
         parser.add_argument(
             "-lg", "--league",
-            help="Which league to score. valid tokens: FF, FV, SRF, ECR, WW"
+            help="Which league to score. valid tokens: FF, FV, SRF, ECR, WW\n"
+                 "WW will score all 3 weekend warrior leagues: FF, FV, and SRF"
         )
 
     def process_args(self, args):
@@ -188,14 +191,18 @@ class SteveRay(LeagueMain):
         scoring.finish_race.points = 2
         scoring.finish_race.minimum_requirement = 0.85
 
-    def _pull_all_seasons(self, league_id: int):
-        all_seasons = LeagueConfiguration.fetch_all_season_names(self.idc, league_id)
+    def _pull_all_seasons(self, league_id: int) -> list:
+        return LeagueConfiguration.fetch_all_season_names(self.idc, league_id)
 
     def _get_ww_configurations(self, league_id: int, season: str, gsheet: str):
 
         def apply_penalties(cfg: LeagueConfiguration):
             if league_id == _ff:
-                pass
+                if season == "2026S2 FF Weekend Warriors":
+                    # Did not perform required pit stop
+                    cfg.add_time_penalty(6, 998259, 180)  # Williams
+                    cfg.add_time_penalty(6, 679942, 180)  # Moran
+                    cfg.add_time_penalty(6, 85279, 180)   # Nomm
             elif league_id == _fv:
                 # Apply Penalties
                 if season == "WW FV 2025 S4":
@@ -208,7 +215,7 @@ class SteveRay(LeagueMain):
         num_races = 12
         all_cfg = LeagueConfiguration(name="All", iracing_id=league_id, season=season, num_races=num_races)
         all_cfg.google_sheet = gsheet
-        all_cfg.add_group_rule("Drivers", GroupRules(0, 999, num_drops))
+        all_cfg.add_group_rule("All Drivers", GroupRules(0, 999, num_drops))
         SteveRay._setup_scoring(all_cfg)
         apply_penalties(all_cfg)
 
@@ -224,8 +231,8 @@ class SteveRay(LeagueMain):
         self.configs.append(class_config)
 
     def _get_ecr_configurations(self, season: str, group: str):
-        num_drops = 0
-        num_races = 12
+        num_drops = 1
+        num_races = 6
         cfg = LeagueConfiguration(name="ECR", iracing_id=_ecr, season=season, num_races=num_races)
         cfg.google_sheet = "1HzKe8K5kYwb50WLppZjsSUgxWlQr_zSiBzKIhil_bFY"
         cfg.add_group_rule(group, GroupRules(0, 999, num_drops))
@@ -233,23 +240,23 @@ class SteveRay(LeagueMain):
 
         if season == "Season 2 Group 5A Jetta" and group == "5A Jetta":
             # Jumping before end of session
-            cfg.override_finish_order(race=3, order=[114175,  # Pendergrass
-                                                     407295,  # Robertson
-                                                     543002,  # Hayes
-                                                     449980,  # Spoelman
-                                                     920078,  # Weaver
-                                                     173130,  # Justice
-                                                     903073,  # Yankee
-                                                     251760,  # Brewster
+            cfg.override_finish_order(race=3, order=[114175,   # Pendergrass
+                                                     407295,   # Robertson
+                                                     543002,   # Hayes
+                                                     449980,   # Spoelman
+                                                     920078,   # Weaver
+                                                     173130,   # Justice
+                                                     903073,   # Yankee
+                                                     251760,   # Brewster
                                                      1155903,  # Miller
-                                                     186201,  # Lebano
-                                                     260841,  # Love
-                                                     180474,  # Sanchinelli
-                                                     136838,  # Key
-                                                     453077,  # Buttermore
-                                                     67948,  # Effinger
+                                                     186201,   # Lebano
+                                                     260841,   # Love
+                                                     180474,   # Sanchinelli
+                                                     136838,   # Key
+                                                     453077,   # Buttermore
+                                                     67948,    # Effinger
                                                      1153773,  # Daniel
-                                                     511982]  # Cicchetti
+                                                     511982]   # Cicchetti
                                       )
 
         self.configs.append(cfg)
@@ -314,6 +321,7 @@ class RaySheets(SheetsDisplay):
 def main():
     ray = SteveRay(log_filename="steve-ray.log")
     ray.score_league()
+
 
 if __name__ == "__main__":
     main()
