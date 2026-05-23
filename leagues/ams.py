@@ -132,21 +132,26 @@ def get_season_10_cfgs() -> list[LeagueConfiguration]:
         else:
             raise IndexError("Unknown configuration")
 
-        if scoring:
-            scoring.pole_position = 1
-            scoring.fastest_lap.points = 1
-            scoring.fastest_lap.minimum_requirement = 0
-            scoring.lead_a_lap.points = 1
-            scoring.lead_a_lap.minimum_requirement = 0
-            scoring.most_laps_lead.points = 0
-            scoring.most_laps_lead.minimum_requirement = 0
-            scoring.clean_driver.point_map = {0: 3,
-                                              1: 2,
-                                              2: 1,
-                                              3: 1,
-                                              4: 1}
-            scoring.clean_driver.minimum_requirement = 0.5
-            scoring.clean_driver.separate_points = True
+        scoring.pole_position = 1
+        scoring.fastest_lap.points = 1
+        scoring.fastest_lap.minimum_requirement = 0
+        scoring.lead_a_lap.points = 1
+        scoring.lead_a_lap.minimum_requirement = 0
+        scoring.most_laps_lead.points = 0
+        scoring.most_laps_lead.minimum_requirement = 0
+        scoring.clean_driver.point_map = {0: 3,
+                                          1: 2,
+                                          2: 1,
+                                          3: 1,
+                                          4: 1}
+        scoring.clean_driver.minimum_requirement = 0.5
+        scoring.clean_driver.separate_points = True
+        # Double up points for race 12
+        multiplier = scoring.add_race_multiplier(race=14)
+        multiplier.position = 2
+        multiplier.pole_position = 2
+        multiplier.fastest_lap = 2
+        multiplier.lead_a_lap = 2
 
         # Add non drivers like race control and media personalities
         cfg.add_non_driver(295683)  # Richey
