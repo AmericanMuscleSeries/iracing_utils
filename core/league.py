@@ -835,16 +835,20 @@ class LeagueConfiguration:
                     if grp == "Unknown":
                         _logger.fatal(f"How did we get an Unknown group?")
                         exit(1)
+                    if stat is None:
+                        _logger.warning(f"No race stats for group {grp}")
+                        continue
 
-                    dvr = lg.get_driver(stat.winning_driver)
-                    dvr._total_wins += 1
+                    if stat.winning_driver:
+                        dvr = lg.get_driver(stat.winning_driver)
+                        dvr._total_wins += 1
 
-                    rr = race.get_result(stat.pole_position_driver)
-                    rr._pole_position = True
-                    rr._points += self.scoring_system.pole_position * multiplier.pole_position
-                    dvr = lg.get_driver(stat.pole_position_driver)
-                    dvr._total_pole_positions += 1
-                    dvr._pole_position_points += self.scoring_system.pole_position * multiplier.pole_position
+                    if stat.pole_position_driver:
+                        rr = race.get_result(stat.pole_position_driver)
+                        rr._pole_position = True
+                        rr._points += self.scoring_system.pole_position * multiplier.pole_position
+                        dvr = lg.get_driver(stat.pole_position_driver)
+                        dvr._pole_position_points += self.scoring_system.pole_position * multiplier.pole_position
 
                     if race.number in self._fast_laps_override:
                         if stat.fastest_lap_driver in self._fast_laps_override[race.number]:
@@ -853,25 +857,24 @@ class LeagueConfiguration:
                                          f"{lg.get_driver(stat.fastest_lap_driver).name} to "
                                          f"{lg.get_driver(new_fast_lap_id).name}")
                             stat._fastest_lap_driver = new_fast_lap_id
-                    rr = race.get_result(stat.fastest_lap_driver)
-                    if rr is None:
-                        _logger.warning("No fastest lap for race")
-                        # You can have a race where noone sets a legal lap....
-                    else:
+
+
+                    if stat.fastest_lap_driver:
+                        rr = race.get_result(stat.fastest_lap_driver)
                         rr._fastest_lap = True
                         rr._points += self.scoring_system.fastest_lap.points * multiplier.fastest_lap
                         dvr = lg.get_driver(stat.fastest_lap_driver)
-                        dvr._total_fastest_laps += 1
                         dvr._fastest_lap_points += self.scoring_system.fastest_lap.points * multiplier.fastest_lap
+                    else:
+                        _logger.warning("No fastest lap for race")
+                        # You can have a race where noone sets a legal lap....
 
-                    if stat.most_laps_lead_driver is None:
-                        print("most_laps_lead_driver is None")
-                    rr = race.get_result(stat.most_laps_lead_driver)
-                    rr._most_laps_lead = True
-                    rr._points += self.scoring_system.most_laps_lead.points * multiplier.most_laps_lead
-                    dvr = lg.get_driver(stat.most_laps_lead_driver)
-                    dvr._total_most_laps_lead += 1
-                    dvr._most_laps_lead_points += self.scoring_system.most_laps_lead.points * multiplier.most_laps_lead
+                    if stat.most_laps_lead_driver:
+                        rr = race.get_result(stat.most_laps_lead_driver)
+                        rr._most_laps_lead = True
+                        rr._points += self.scoring_system.most_laps_lead.points * multiplier.most_laps_lead
+                        dvr = lg.get_driver(stat.most_laps_lead_driver)
+                        dvr._most_laps_lead_points += self.scoring_system.most_laps_lead.points * multiplier.most_laps_lead
 
             # Score each driver
             points = list()

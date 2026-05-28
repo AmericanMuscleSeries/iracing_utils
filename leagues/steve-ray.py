@@ -29,7 +29,7 @@ class SteveRay(LeagueMain):
     __slots__ = ["_lt"]
 
     def __init__(self, log_filename: str):
-        self._lt = LeagueType.ECR
+        self._lt = LeagueType.WW
         super().__init__(log_filename)
 
     def add_args(self, parser):

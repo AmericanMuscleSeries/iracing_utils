@@ -989,7 +989,8 @@ def serialize_league_result_to_string(src: LeagueResult, fmt: SerializationForma
             stats_data.PolePositionDriver = stats.pole_position_driver
             stats_data.PolePosition = stats.pole_position
             stats_data.WinningPosition = stats.winning_position
-            stats_data.WinningDriver = stats.winning_driver
+            if stats.winning_driver:
+                stats_data.WinningDriver = stats.winning_driver
             if stats.fastest_lap_driver is not None:  # A race can have no fastest_lap_driver (nobody has a valid lap)
                 stats_data.FastestLapDriver = stats.fastest_lap_driver
             stats_data.FastestLapTime = stats.fastest_lap_time
