@@ -29,7 +29,7 @@ class SteveRay(LeagueMain):
     __slots__ = ["_lt"]
 
     def __init__(self, log_filename: str):
-        self._lt = LeagueType.FF
+        self._lt = LeagueType.SRF
         super().__init__(log_filename)
 
     def add_args(self, parser):
@@ -108,7 +108,8 @@ class SteveRay(LeagueMain):
             legacy.append((_srf, "2025 S3 SRF WW", "1Zfig0SYlfPvbhCOAA5ekQYgpfDlCQeGm8DbpUH3-mTo"))
             legacy.append((_srf, "2025S4 WW SRF 10yr Anniversary season", "1fOaE9Afo0DtdSbY7SoTP7MnrUSRGgp9AE2IqCExFXmA"))
             legacy.append((_srf, "2026S1 WW SRF", "1FNH5qaUKaMWGf_J96NKLqff_MTZwQA7NErieO0fQ9KA"))
-            s = (_srf, "2026S2 WW SRF", "1UI842BVIf_eIBbyxIVZPzVCeBFLgG56t1qAau_0XmhU")
+            legacy.append((_srf, "2026S2 WW SRF", "1UI842BVIf_eIBbyxIVZPzVCeBFLgG56t1qAau_0XmhU"))
+            s = (_srf, "2026S3 Summer Challenge", "1hqvaFvcDqLwH3mDdSOMrUr_2hhHMlX6TpX8hboZ3U1A")
             leagues.append(s)
         for league in leagues:
             self._get_ww_configurations(league[0], league[1], league[2])
