@@ -4,6 +4,7 @@
 import base64
 import hashlib
 import json
+import logging
 import requests
 import urllib.parse
 
@@ -12,6 +13,10 @@ from pathlib import Path
 
 from core.garage61 import Garage61Client
 from core.objects import Main
+from core.credentials import data_credentials, google_credentials
+
+
+_logger = logging.getLogger('log')
 
 
 def _request_password_limited_token(username: str, password: str, client_id: str, client_secret: str):
@@ -66,13 +71,13 @@ def _request_password_limited_token(username: str, password: str, client_id: str
 
 
 class ClientMain(Main):
-    __slots__ = ["_idc", "_g61", "_credentials", "_credentials_filename", "_google_credentials_filename"]
+    __slots__ = ["_idc", "_g61", "_credentials", "_google_credentials"]
 
     def __init__(self, log_filename: str):
         self._idc = None
         self._g61 = None
         self._credentials = None
-        self._credentials_filename = None
+        self._google_credentials = None
         super().__init__(log_filename)
 
     def add_args(self, parser):
@@ -92,13 +97,21 @@ class ClientMain(Main):
 
     def process_args(self, args):
         super().process_args(args)
-        self._credentials_filename = args.credentials
-        if self._credentials_filename.exists():
-            with open(self._credentials_filename, 'r') as file:
+        if args.credentials.exists():
+            with open(args.credentials, 'r') as file:
                 self._credentials = json.load(file)
         else:
-            raise IOError(f"Unable to find credentials file {self._credentials_filename}")
-        self._google_credentials_filename = args.google_credentials
+            self._credentials = data_credentials()
+        if self._credentials is None or len(self._credentials) == 0:
+            raise IOError(f"Unable to find data credentials")
+
+        if args.google_credentials.exists():
+            with open(args.google_credentials, 'r') as file:
+                self._google_credentials = json.load(file)
+        else:
+            self._google_credentials = google_credentials()
+        if self._google_credentials is None or len(self._google_credentials) == 0:
+            _logger.warning(f"!!!No google credentials found, will not be able to push to a google sheet!!!")
 
     @property
     def idc(self):
@@ -117,4 +130,4 @@ class ClientMain(Main):
         return self._g61
 
     @property
-    def google_credentials_filename(self): return self._google_credentials_filename
+    def google_credentials(self) -> dict: return self._google_credentials

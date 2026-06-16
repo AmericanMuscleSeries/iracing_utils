@@ -52,7 +52,7 @@ class GDrive:
                  "_results_key", "_results_xls", "_result_sheets",
                  "_driver_key", "_drivers_xls", "_driver_sheets"]
 
-    def __init__(self, credentials_filename: str):
+    def __init__(self, credentials: dict):
         self._gc = None
         self._results_key = None
         self._results_xls = None
@@ -64,13 +64,12 @@ class GDrive:
         # https://docs.gspread.org/en/latest/oauth2.html#
         # self._gc = gspread.oauth(
         #     credentials_filename=credentials_filename)
-        self._gc = gspread.service_account(
-            filename=credentials_filename)
+        self._gc = gspread.service_account_from_dict(credentials)
 
     @staticmethod
     def push_results_to_sheets(lg: LeagueResult, groups: list[str],
-                               sheets_display: SheetsDisplay, credentials_filename: Path):
-        gdrive = GDrive(str(credentials_filename))
+                               sheets_display: SheetsDisplay, credentials: dict):
+        gdrive = GDrive(credentials)
         if sheets_display is None:
             _logger.warning(
                 "Not pushing. No sheet specified to push to. Check your configuration.")

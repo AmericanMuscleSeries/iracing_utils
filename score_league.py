@@ -55,13 +55,13 @@ def score_league(client: ClientMain,
         broadcast_standings(cfg, league, results_dir)
 
     # Push our results up to our sheets
-    if sheets_display is not None and client.google_credentials_filename.exists():
+    if sheets_display is not None and len(client.google_credentials) > 0:
         try:
             _logger.info("Pushing " + cfg.name + " season " + str(cfg.season) + " results to sheets")
             GDrive.push_results_to_sheets(league,
                                           list(cfg.group_rules.keys()),
                                           sheets_display,
-                                          client.google_credentials_filename)
+                                          client.google_credentials)
         except Exception as e:
             print("Failed to upload to google sheets", e)
             if "Token" in str(e) and "expired" in str(e):
