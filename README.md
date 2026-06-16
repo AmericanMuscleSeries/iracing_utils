@@ -49,6 +49,6 @@ The intent of the penalties is to time them so that all drivers in all cars all 
 ## Creating an executable
 
 Using pyinstaller
-cd path/to/your/script/folder
-pyinstaller --onefile your_script_name.py
+C:\Programming\iracing\iracing_utils> pyinstaller --paths=. --onefile ./leagues/steve-ray.py
+
 
