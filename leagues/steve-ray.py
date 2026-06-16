@@ -29,7 +29,7 @@ class SteveRay(LeagueMain):
     __slots__ = ["_lt"]
 
     def __init__(self, log_filename: str):
-        self._lt = LeagueType.WW
+        self._lt = LeagueType.FF
         super().__init__(log_filename)
 
     def add_args(self, parser):
@@ -213,17 +213,18 @@ class SteveRay(LeagueMain):
 
         num_drops = 3
         num_races = 12
+        min_races_for_drops = num_races - num_drops
         all_cfg = LeagueConfiguration(name="All", iracing_id=league_id, season=season, num_races=num_races)
         all_cfg.google_sheet = gsheet
-        all_cfg.add_group_rule("All Drivers", GroupRules(0, 999, num_drops))
+        all_cfg.add_group_rule("All Drivers", GroupRules(0, 999, num_drops, min_races_for_drops))
         SteveRay._setup_scoring(all_cfg)
         apply_penalties(all_cfg)
 
         class_config = LeagueConfiguration(name="Group", iracing_id=league_id, season=season, num_races=num_races)
         class_config.google_sheet = gsheet
-        class_config.add_group_rule("S1 Drivers", GroupRules(0, 199, num_drops))
-        class_config.add_group_rule("S2 Drivers", GroupRules(200, 899, num_drops))
-        class_config.add_group_rule("Masters Drivers", GroupRules(900, 999, num_drops))
+        class_config.add_group_rule("S1 Drivers", GroupRules(0, 199, num_drops, min_races_for_drops))
+        class_config.add_group_rule("S2 Drivers", GroupRules(200, 899, num_drops, min_races_for_drops))
+        class_config.add_group_rule("Masters Drivers", GroupRules(900, 999, num_drops, min_races_for_drops))
         SteveRay._setup_scoring(class_config)
         apply_penalties(class_config)
 

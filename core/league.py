@@ -881,6 +881,7 @@ class LeagueConfiguration:
             for cust_id, driver in lg.drivers.items():
                 if driver.group == "Unknown":
                     continue
+
                 lg.get_driver(cust_id)
                 points.clear()
                 num_races = 0
@@ -908,6 +909,8 @@ class LeagueConfiguration:
                 driver._handicap_points = sum(points) + sum(hcp_points)
                 driver._drop_points = 0
 
+                #if cust_id == 855223:
+                #    print("Here")
                 num_drops = self.get_group_rules(driver.group).num_drops
                 min_races_for_drops = self.get_group_rules(driver.group).min_races_for_drops
                 if num_drops > 0:
@@ -919,9 +922,13 @@ class LeagueConfiguration:
                     elif completed_races >= min_races_for_drops:
                         # We have the minimum number of races to calculate drop points
                         perform_drops = True
+                        if len(points) != self._num_races:
+                            num_drops -= self._num_races-len(points)
+                    else:  # We are dropping ahead of
                         # Unrun races have zero points in the points array, so drop those too
                         if len(points) > completed_races:
                             num_drops += len(points) - completed_races
+                        raise Exception("You need to look at this!!!")
                     if perform_drops:
                         driver._drop_points = sum(sorted(points)[:num_drops])
                 if driver.total_completed_races > 0:
