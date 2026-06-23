@@ -23,6 +23,7 @@ from core.objects_pb2 import (GroupRulesData, LeagueConfigurationData, PointsMul
 
 _logger = logging.getLogger('log')
 
+
 class LeagueMain(ClientMain):
     __slots__ = ["configs"]
 
@@ -581,6 +582,11 @@ class LeagueConfiguration:
                             driver_car_number = int(ir_car_result["livery"]["car_number"])
                             driver.set_car_number(driver_car_number, self.get_group(driver_car_number))
 
+                        if driver.car_number != int(ir_car_result["livery"]["car_number"]) and not active:
+                            new_number = int(ir_car_result["livery"]["car_number"])
+                            _logger.info(f"Updating {driver.name}'s number from {driver.car_number} to {new_number}")
+                            driver.set_car_number(new_number, self.get_group(new_number))
+
                         # Don't add dq'd drivers to the race, just promote everyone
                         dq_driver = False
                         for dq in self.disqualifications:
@@ -924,11 +930,13 @@ class LeagueConfiguration:
                         perform_drops = True
                         if len(points) != self._num_races:
                             num_drops -= self._num_races-len(points)
-                    else:  # We are dropping ahead of
-                        # Unrun races have zero points in the points array, so drop those too
-                        if len(points) > completed_races:
-                            num_drops += len(points) - completed_races
-                        raise Exception("You need to look at this!!!")
+                    else:  # We are trying to drop ahead of the min races are run
+                        # And we have unrun races, which are zero in the point
+                        # So we really don't need to do anything
+                        perform_drops = False
+                        # If unrun races are not zero... we'd need to drop them... but wtf...
+                        # if len(points) > completed_races:
+                        #     num_drops = len(points) - completed_races
                     if perform_drops:
                         driver._drop_points = sum(sorted(points)[:num_drops])
                 if driver.total_completed_races > 0:

@@ -34,7 +34,11 @@ def score_league(client: ClientMain,
         fp.write(cfg_str)
 
     # Score
-    league = cfg.fetch_and_score_league(client.idc, active)
+    try:
+        league = cfg.fetch_and_score_league(client.idc, active)
+    except Exception as e:
+        _logger.fatal(f"Houston, we have a problem: {e}")
+        return
 
     # print_debug_stats(league, 609455)
     # print_debug_stats(league, 120570)

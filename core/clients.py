@@ -103,6 +103,7 @@ class ClientMain(Main):
         else:
             self._credentials = data_credentials()
         if self._credentials is None or len(self._credentials) == 0:
+            _logger.fatal("Could not find any data credentials")
             raise IOError(f"Unable to find data credentials")
 
         if args.google_credentials.exists():
