@@ -51,8 +51,8 @@ def score_league(client: ClientMain,
     # Convert the League class to a python dict
     d = league.as_dict()  # Work with data in a native python format instead of our classes
     # Dump the dict to json
-    with open(filename, 'w') as fp:
-        json.dump(d, fp, indent=2)
+    with open(filename, 'w', encoding="utf-8") as fp:
+        json.dump(d, fp, ensure_ascii=False, indent=2)
 
     # Write broadcast csv
     if broadcast:
